@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 from jinja2 import Template
 from datetime import datetime
 
+%pip install folium jinja2 matplotlib
+
 def classify_water_levels(data):
     """Klasyfikuje stany wód na podstawie wartości w kolumnie 'stan'"""
     alarm_state = []
