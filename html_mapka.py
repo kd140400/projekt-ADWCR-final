@@ -9,7 +9,7 @@ import json
 API_URL = "https://danepubliczne.imgw.pl/api/data/hydro2"
 # Plik CSV
 CSV_FILE = 'hydro_data.csv'
-# Plik GeoJSON granic Polski
+# Plik GeoJSON granic Polski (w tej samej ścieżce co skrypt)
 GEOJSON_FILE = 'poland.geojson'
 
 def fetch_new_data():
@@ -63,11 +63,12 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     levels = [(r['kod_stacji'], float(r['stan']))
               for r in data if r.get('stan') is not None]
     top10 = sorted(levels, key=lambda x: x[1], reverse=True)[:10]
-    top10_labels = [k for k, _ in top10]
+    top10_codes = [k for k, _ in top10]
     top10_values = [v for _, v in top10]
     # mapowanie kod → nazwa
     station_names = {r['kod_stacji']: r['nazwa_stacji'] for r in data}
-    top10_names = [station_names.get(k, k) for k in top10_labels]
+    # Etykiety w formacie "kod – nazwa"
+    top10_labels_full = [f"{k} – {station_names.get(k, k)}" for k in top10_codes]
 
     # 4) Wczytaj GeoJSON granic Polski
     with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
@@ -243,6 +244,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
+    // Zakładki
     document.querySelectorAll('.tab-button').forEach(btn=>{
       btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
@@ -253,6 +255,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     });
 
+    // Leaflet
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap contributors'
@@ -288,7 +291,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     new Chart(document.getElementById('top10Chart'), {
       type:'bar',
       data:{
-        labels:{{ top10_names|tojson }},
+        labels:{{ top10_labels_full|tojson }},
         datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }} }]
       },
       options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
@@ -297,7 +300,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 </body>
 </html>
     """)
-
+    
     rendered = tpl.render(
         data=data,
         alarm_state=alarm_state,
@@ -305,7 +308,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         normal_state=normal_state,
         counts=counts,
         top10_values=top10_values,
-        top10_names=top10_names,
+        top10_labels_full=top10_labels_full,
         boundary=boundary,
         timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
