@@ -9,8 +9,6 @@ import json
 API_URL = "https://danepubliczne.imgw.pl/api/data/hydro2"
 # Plik CSV
 CSV_FILE = 'hydro_data.csv'
-# Plik GeoJSON granic Polski (w tej samej ścieżce co skrypt)
-GEOJSON_FILE = 'poland.geojson'
 
 def fetch_new_data():
     r = requests.get(API_URL)
@@ -18,15 +16,6 @@ def fetch_new_data():
 
 def save_new_data(data, csv_file=CSV_FILE):
     pd.DataFrame(data).to_csv(csv_file, index=False, encoding='utf-8-sig')
-
-def refresh_and_save_data():
-    new = fetch_new_data()
-    if new:
-        with open(CSV_FILE, 'w', encoding='utf-8-sig') as f:
-            f.truncate(0)
-        save_new_data(new)
-        return new
-    return None
 
 def classify_water_levels(data):
     alarm, warning, normal = [], [], []
@@ -41,7 +30,7 @@ def classify_water_levels(data):
     return alarm, warning, normal
 
 def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
-    # 1) Wczytaj dane CSV
+    # Wczytaj dane
     data = []
     with open(csv_file, mode='r', encoding='utf-8-sig') as f:
         reader = csv.DictReader(f, delimiter=';')
@@ -49,11 +38,25 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
             data.append({k: (v if v != '' else None) for k, v in r.items()})
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
-    # 2) Wczytaj GeoJSON granic Polski jako Python‐owy dict
-    with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
-        boundary = json.load(gf)
+    # Top10 stacji wg poziomu
+    levels = [(r['kod_stacji'], float(r['stan'])) for r in data if r.get('stan') is not None]
+    top10 = sorted(levels, key=lambda x: x[1], reverse=True)[:10]
+    top10_keys = [k for k, v in top10]
+    top10_vals = [v for k, v in top10]
 
-    # 3) Szablon HTML
+    # Średni poziom (gauge)
+    vals = [float(r['stan']) for r in data if r.get('stan') is not None]
+    avg_level = sum(vals) / len(vals) if vals else 0
+
+    # Dane historyczne (tu: tylko jeden punkt, można rozbudować)
+    history_data = {
+        r['kod_stacji']: {
+            'dates': [r['stan_data']],
+            'levels': [float(r['stan'])] if r.get('stan') is not None else [0]
+        }
+        for r in data if r.get('kod_stacji') and r.get('stan_data')
+    }
+
     tpl = Template("""
 <!DOCTYPE html>
 <html lang="pl">
@@ -65,97 +68,76 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <style>
     body{font-family:Arial,sans-serif;margin:20px;background:#f5f5f5;}
     h1,h2{text-align:center;color:#2c3e50;}
-    .summary{display:flex;justify-content:space-around;margin:20px 0;}
-    .summary-box{padding:15px;border-radius:8px;color:#fff;font-weight:bold;}
-    .alarm-summary{background:#e74c3c;} .warning-summary{background:#f1c40f;} .normal-summary{background:#2ecc71;}
-    #refresh-button{position:fixed;top:20px;right:20px;padding:10px 20px;background:#3498db;color:#fff;border:none;border-radius:5px;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,0.2);}
-    #refresh-button:hover{background:#2980b9;}
     .tabs{display:flex;gap:10px;margin-top:20px;}
     .tab-button{padding:10px 20px;background:#eee;border:none;border-radius:5px 5px 0 0;cursor:pointer;}
     .tab-button.active{background:#fff;border-bottom:2px solid #fff;}
-    .tab-content{display:none;}
-    .tab-content.active{display:block;}
+    .tab-content{display:none;} .tab-content.active{display:block;}
     .table-container{overflow-x:auto;background:#fff;padding:20px;margin:20px 0;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    table{width:100%;border-collapse:collapse;font-size:0.9em;}
-    th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;}
-    th{background:#3498db;color:#fff;position:sticky;top:0;}
-    tr:nth-child(even){background:#f2f2f2;} tr:hover{background:#e6f7ff;}
+    table{width:100%;border-collapse:collapse;font-size:0.9em;} th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;}
+    th{background:#3498db;color:#fff;position:sticky;top:0;} tr:nth-child(even){background:#f2f2f2;} tr:hover{background:#e6f7ff;}
     .coords{font-family:monospace;} .null-value{color:#999;font-style:italic;}
-    .alarm td{background:#ffdddd;} .warning td{background:#fff3cd;}
     #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    canvas{max-width:100%;}
+    canvas{max-width:100%;margin:20px 0;}
+    #stationSelect{width:100%;padding:10px;margin-bottom:20px;border-radius:5px;border:1px solid #ccc;}
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
 </head>
 <body>
   <h1>Dane hydrologiczne IMGW (hydro2)</h1>
-  <div class="summary">
-    <div class="summary-box alarm-summary">Alarmowe (≥500): {{ alarm_state|length }}</div>
-    <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
-    <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
-  </div>
-  <button id="refresh-button" onclick="window.location.href='/refresh'">Odśwież dane</button>
-
   <div class="tabs">
-    <button class="tab-button active" data-tab="table">Tabela</button>
-    <button class="tab-button" data-tab="map">Mapa</button>
-    <button class="tab-button" data-tab="charts">Wykresy</button>
+    <button class="tab-button active" data-tab="chart-area">Wykresy</button>
+    <button class="tab-button" data-tab="table-area">Tabela</button>
+    <button class="tab-button" data-tab="map-area">Mapa</button>
+  </div>
+
+  <!-- Wykresy -->
+  <div id="chart-area" class="tab-content active">
+    <h2>Rozkład stanów stacji</h2>
+    <canvas id="pieStateChart"></canvas>
+
+    <h2>Średni poziom wody (gauge)</h2>
+    <canvas id="doughnutChart"></canvas>
+
+    <h2>Top 10 stacji według poziomu</h2>
+    <canvas id="top10Chart"></canvas>
+
+    <h2>Trend stanu wybranej stacji</h2>
+    <select id="stationSelect">
+      {% for r in data %}
+      <option value="{{ r.kod_stacji }}">{{ r.kod_stacji }} – {{ r.nazwa_stacji }}</option>
+      {% endfor %}
+    </select>
+    <canvas id="lineTrendChart"></canvas>
   </div>
 
   <!-- Tabela -->
-  <div id="table" class="tab-content active">
-    {% if alarm_state %}
-      <h2>⚠️ Stany alarmowe (≥500)</h2>
-      <div class="table-container alarm">
-        <table><thead><tr>
-          <th>Kod</th><th>Nazwa</th><th>Współrzędne</th><th>Stan</th><th>Data</th><th>Przepływ</th><th>Data przepływu</th>
-        </tr></thead>
-        <tbody>
-        {% for r in alarm_state %}
-          <tr>
-            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
-            <td class="coords">
-              {% if r.lon and r.lat %}
-                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
-              {% else %}<span class="null-value">brak</span>{% endif %}
-            </td>
-            <td><strong>{{ r.stan }}</strong></td>
-            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
-          </tr>
-        {% endfor %}
-        </tbody></table>
-      </div>
-    {% endif %}
-    {% if warning_state %}
-      <h2>⚠ Stany ostrzegawcze (450–499)</h2>
-      <div class="table-container warning">
-        <!-- analogicznie jak wyżej -->
-      </div>
-    {% endif %}
-    <h2>Wszystkie stacje</h2>
+  <div id="table-area" class="tab-content">
     <div class="table-container">
-      <!-- analogicznie pełna tabela -->
+      <table>
+        <thead>
+          <tr><th>Kod stacji</th><th>Nazwa</th><th>Stan</th><th>Data pomiaru</th></tr>
+        </thead>
+        <tbody>
+          {% for r in data %}
+          <tr>
+            <td>{{ r.kod_stacji }}</td>
+            <td>{{ r.nazwa_stacji }}</td>
+            <td>{{ r.stan or '–' }}</td>
+            <td>{{ r.stan_data or '–' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 
   <!-- Mapa -->
-  <div id="map" class="tab-content">
+  <div id="map-area" class="tab-content">
     <div id="leaflet-map"></div>
   </div>
 
-  <!-- Wykresy -->
-  <div id="charts" class="tab-content">
-    <canvas id="stateChart"></canvas>
-  </div>
-
   <div class="footer">
-    Ostatnia aktualizacja: {{ timestamp }} |
-    Rekordów: {{ data|length }} |
-    Alarmowych: {{ alarm_state|length }} |
-    Ostrzegawczych: {{ warning_state|length }}
+    Wygenerowano: {{ timestamp }}
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -163,71 +145,100 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <script>
     // Zakładki
     document.querySelectorAll('.tab-button').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+      btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
-        document.getElementById(btn.dataset.tab).classList.add('active');
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
         btn.classList.add('active');
-        if(btn.dataset.tab==='map') setTimeout(()=>map.invalidateSize(),200);
+        document.getElementById(btn.dataset.tab).classList.add('active');
       });
     });
 
-    // Leaflet: mapa + granice z wstrzykniętego boundary
-    var map = L.map('leaflet-map').setView([52.0,19.0],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap contributors'
-    }).addTo(map);
+    // PIE Chart
+    new Chart(document.getElementById('pieStateChart'), {
+      type: 'pie',
+      data: {
+        labels: ['Alarmowe','Ostrzegawcze','Normalne'],
+        datasets: [{ data: [{{ alarm_state|length }},{{ warning_state|length }},{{ normal_state|length }}] }]
+      },
+      options:{responsive:true}
+    });
 
-    var boundary = {{ boundary|tojson }};
-    L.geoJSON(boundary,{style:{color:'#555',weight:1,fill:false}}).addTo(map);
-
-    // Markery stacji
-    var stations = {{ data|tojson }};
-    stations.forEach(s=>{
-      if(s.lon&&s.lat){
-        var m=L.circleMarker([+s.lat,+s.lon],{
-          radius:5,
-          color: s.stan>=500?'red':(s.stan>=450?'orange':'green')
-        }).addTo(map);
-        m.bindPopup(
-          `<b>${s.nazwa_stacji||'—'}</b><br>`+
-          `Stan: ${s.stan||'—'}<br>`+
-          `Data: ${s.stan_data||'—'}`
-        );
+    // GAUGE (doughnut half)
+    new Chart(document.getElementById('doughnutChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['Średni poziom',''],
+        datasets:[{ data:[{{ avg_level }}, {{ 1000-avg_level }}] }]
+      },
+      options:{
+        responsive:true,
+        circumference: Math.PI,
+        rotation: Math.PI
       }
     });
 
-    // Chart.js
-    var ctx=document.getElementById('stateChart').getContext('2d');
-    new Chart(ctx,{
+    // TOP10 horizontal bar
+    new Chart(document.getElementById('top10Chart'), {
       type:'bar',
       data:{
-        labels:['Alarmowe','Ostrzegawcze','Normalne'],
-        datasets:[{
-          label:'Liczba stacji',
-          data:[
-            {{ alarm_state|length }},
-            {{ warning_state|length }},
-            {{ normal_state|length }}
-          ]
-        }]
+        labels: {{ top10_keys|tojson }},
+        datasets:[{ label:'Poziom wody', data: {{ top10_vals|tojson }} }]
       },
-      options:{responsive:true,scales:{y:{beginAtZero:true}}}
+      options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
+    });
+
+    // LINE trend
+    const historyData = {{ history_data|tojson }};
+    const select = document.getElementById('stationSelect');
+    const ctxLine = document.getElementById('lineTrendChart').getContext('2d');
+    let lineChart = new Chart(ctxLine, {
+      type:'line',
+      data:{
+        labels: historyData[select.value].dates,
+        datasets:[{ label:'Stan wody', data: historyData[select.value].levels, fill:false, tension:0.1 }]
+      },
+      options:{responsive:true}
+    });
+    select.addEventListener('change',()=>{
+      const d = historyData[select.value];
+      lineChart.data.labels = d.dates;
+      lineChart.data.datasets[0].data = d.levels;
+      lineChart.update();
+    });
+
+    // Leaflet map
+    var map = L.map('leaflet-map').setView([52,19],6);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      attribution:'© OpenStreetMap contributors'
+    }).addTo(map);
+    const stations = {{ data|tojson }};
+    stations.forEach(s=>{
+      if(s.lat && s.lon){
+        L.circleMarker([+s.lat,+s.lon], {
+          radius:5,
+          color: s.stan>=500?'red':(s.stan>=450?'orange':'green')
+        }).addTo(map).bindPopup(
+          `<b>${s.nazwa_stacji}</b><br>Stan: ${s.stan}`
+        );
+      }
     });
   </script>
 </body>
 </html>
     """)
 
-    # Render i zapis
     rendered = tpl.render(
         data=data,
         alarm_state=alarm_state,
         warning_state=warning_state,
         normal_state=normal_state,
-        timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        boundary=boundary
+        top10_keys=top10_keys,
+        top10_vals=top10_vals,
+        avg_level=avg_level,
+        history_data=history_data,
+        timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
+
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(rendered)
     print(f"✅ Wygenerowano {output_file}")
