@@ -266,7 +266,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     // Chart.js – Top 10 stacji
     new Chart(document.getElementById('top10Chart'), {
       type:'bar',
-      data:{labels:{{ top10_labels.map((k,i)=> data.find(r=>r.kod_stacji==k).nazwa_stacji )|tojson }},datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }} }]},
+      data:{labels:{{ top10_names|tojson }},datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }} }]},
       options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
     });
   </script>
