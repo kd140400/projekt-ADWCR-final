@@ -9,7 +9,7 @@ import json
 API_URL = "https://danepubliczne.imgw.pl/api/data/hydro2"
 # Plik CSV
 CSV_FILE = 'hydro_data.csv'
-# Plik GeoJSON granic Polski (w tej samej ścieżce co skrypt)
+# Plik GeoJSON granic Polski
 GEOJSON_FILE = 'poland.geojson'
 
 def fetch_new_data():
@@ -33,9 +33,12 @@ def classify_water_levels(data):
     for row in data:
         try:
             lvl = float(row.get('stan', 0))
-            if lvl >= 500:      alarm.append(row)
-            elif lvl >= 450:    warning.append(row)
-            else:               normal.append(row)
+            if lvl >= 500:
+                alarm.append(row)
+            elif lvl >= 450:
+                warning.append(row)
+            else:
+                normal.append(row)
         except:
             continue
     return alarm, warning, normal
@@ -47,9 +50,11 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         reader = csv.DictReader(f, delimiter=';')
         for r in reader:
             data.append({k: (v if v != '' else None) for k, v in r.items()})
+
+    # 2) Klasyfikacja stanów
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
-    # 2) Przygotuj dane do wykresów
+    # 3) Przygotuj dane do wykresów
     counts = {
         'alarm': len(alarm_state),
         'warning': len(warning_state),
@@ -60,12 +65,15 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     top10 = sorted(levels, key=lambda x: x[1], reverse=True)[:10]
     top10_labels = [k for k, _ in top10]
     top10_values = [v for _, v in top10]
+    # mapowanie kod → nazwa
+    station_names = {r['kod_stacji']: r['nazwa_stacji'] for r in data}
+    top10_names = [station_names.get(k, k) for k in top10_labels]
 
-    # 3) Wczytaj GeoJSON granic Polski
+    # 4) Wczytaj GeoJSON granic Polski
     with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
         boundary = json.load(gf)
 
-    # 4) Szablon HTML
+    # 5) Szablon HTML
     tpl = Template("""
 <!DOCTYPE html>
 <html lang="pl">
@@ -80,18 +88,24 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .summary{display:flex;justify-content:space-around;margin:20px 0;}
     .summary-box{padding:15px;border-radius:8px;color:#fff;font-weight:bold;}
     .alarm-summary{background:#e74c3c;} .warning-summary{background:#f1c40f;} .normal-summary{background:#2ecc71;}
-    #refresh-button{position:fixed;top:20px;right:20px;padding:10px 20px;background:#3498db;color:#fff;border:none;border-radius:5px;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,0.2);}
+    #refresh-button{position:fixed;top:20px;right:20px;padding:10px 20px;
+      background:#3498db;color:#fff;border:none;border-radius:5px;cursor:pointer;
+      box-shadow:0 4px 8px rgba(0,0,0,0.2);}
     #refresh-button:hover{background:#2980b9;}
     .tabs{display:flex;gap:10px;margin-top:20px;}
     .tab-button{padding:10px 20px;background:#eee;border:none;border-radius:5px 5px 0 0;cursor:pointer;}
     .tab-button.active{background:#fff;border-bottom:2px solid #fff;}
     .tab-content{display:none;} .tab-content.active{display:block;}
-    .table-container{overflow-x:auto;background:#fff;padding:20px;margin:20px 0;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    table{width:100%;border-collapse:collapse;font-size:0.9em;} th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;}
-    th{background:#3498db;color:#fff;position:sticky;top:0;} tr:nth-child(even){background:#f2f2f2;} tr:hover{background:#e6f7ff;}
+    .table-container{overflow-x:auto;background:#fff;padding:20px;margin:20px 0;
+      border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+    table{width:100%;border-collapse:collapse;font-size:0.9em;} 
+    th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;}
+    th{background:#3498db;color:#fff;position:sticky;top:0;} 
+    tr:nth-child(even){background:#f2f2f2;} tr:hover{background:#e6f7ff;}
     .coords{font-family:monospace;} .null-value{color:#999;font-style:italic;}
     .alarm td{background:#ffdddd;} .warning td{background:#fff3cd;}
-    #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+    #leaflet-map{width:100%;height:600px;border-radius:8px;
+      box-shadow:0 2px 4px rgba(0,0,0,0.1);}
     canvas{max-width:100%;margin:20px 0;}
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
@@ -117,7 +131,9 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       <h2>⚠️ Stany alarmowe (≥500)</h2>
       <div class="table-container alarm">
         <table><thead><tr>
-          <th>Kod stacji</th><th>Nazwa stacji</th><th>Współrzędne</th><th>Stan wody</th><th>Data pomiaru</th><th>Przepływ</th><th>Data przepływu</th>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data pomiaru</th>
+          <th>Przepływ</th><th>Data przepływu</th>
         </tr></thead><tbody>
           {% for r in alarm_state %}
           <tr>
@@ -141,7 +157,9 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       <h2>⚠️ Stany ostrzegawcze (450–499)</h2>
       <div class="table-container warning">
         <table><thead><tr>
-          <th>Kod stacji</th><th>Nazwa stacji</th><th>Współrzędne</th><th>Stan wody</th><th>Data pomiaru</th><th>Przepływ</th><th>Data przepływu</th>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data pomiaru</th>
+          <th>Przepływ</th><th>Data przepływu</th>
         </tr></thead><tbody>
           {% for r in warning_state %}
           <tr>
@@ -164,7 +182,9 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     <h2>Wszystkie stacje</h2>
     <div class="table-container">
       <table><thead><tr>
-        <th>Kod stacji</th><th>Nazwa stacji</th><th>Współrzędne</th><th>Stan wody</th><th>Data pomiaru</th><th>Przepływ</th><th>Data przepływu</th><th>Status</th>
+        <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+        <th>Stan wody</th><th>Data pomiaru</th>
+        <th>Przepływ</th><th>Data przepływu</th><th>Status</th>
       </tr></thead><tbody>
         {% for r in data %}
         {% set lvl = r.stan is not none and r.stan|float %}
@@ -223,7 +243,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
-    // Zakładki
     document.querySelectorAll('.tab-button').forEach(btn=>{
       btn.addEventListener('click',()=>{
         document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
@@ -234,7 +253,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     });
 
-    // Leaflet
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap contributors'
@@ -257,16 +275,22 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     // Chart.js – Liczba stacji
     new Chart(document.getElementById('stateChart'), {
       type:'bar',
-      data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],datasets:[{label:'Liczba stacji',data:[
-        {{ counts.alarm }}, {{ counts.warning }}, {{ counts.normal }}
-      ]}]},
+      data:{
+        labels:['Alarmowe','Ostrzegawcze','Normalne'],
+        datasets:[{label:'Liczba stacji',data:[
+          {{ counts.alarm }}, {{ counts.warning }}, {{ counts.normal }}
+        ]}]
+      },
       options:{responsive:true,scales:{y:{beginAtZero:true}}}
     });
 
-    // Chart.js – Top 10 stacji
+    // Chart.js – Top 10 stacji wg poziomu
     new Chart(document.getElementById('top10Chart'), {
       type:'bar',
-      data:{labels:{{ top10_names|tojson }},datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }} }]},
+      data:{
+        labels:{{ top10_names|tojson }},
+        datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }} }]
+      },
       options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
     });
   </script>
@@ -280,8 +304,8 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         warning_state=warning_state,
         normal_state=normal_state,
         counts=counts,
-        top10_labels=top10_labels,
         top10_values=top10_values,
+        top10_names=top10_names,
         boundary=boundary,
         timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
