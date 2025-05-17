@@ -9,7 +9,7 @@ import json
 API_URL = "https://danepubliczne.imgw.pl/api/data/hydro2"
 # Plik CSV
 CSV_FILE = 'hydro_data.csv'
-# Plik GeoJSON granic Polski (w tej samej ścieżce co skrypt)
+# Plik GeoJSON granic Polski
 GEOJSON_FILE = 'poland.geojson'
 
 def fetch_new_data():
@@ -33,9 +33,12 @@ def classify_water_levels(data):
     for row in data:
         try:
             lvl = float(row.get('stan', 0))
-            if lvl >= 500:      alarm.append(row)
-            elif lvl >= 450:    warning.append(row)
-            else:               normal.append(row)
+            if lvl >= 500:
+                alarm.append(row)
+            elif lvl >= 450:
+                warning.append(row)
+            else:
+                normal.append(row)
         except:
             continue
     return alarm, warning, normal
@@ -47,6 +50,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         reader = csv.DictReader(f, delimiter=';')
         for r in reader:
             data.append({k: (v if v != '' else None) for k, v in r.items()})
+
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
     # 2) Przygotuj dane do wykresów
@@ -65,7 +69,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     top10_labels = [k for k, v in top10]
     top10_values = [v for k, v in top10]
 
-    # 3) Wczytaj GeoJSON granic Polski jako Python‐owy dict
+    # 3) Wczytaj GeoJSON granic Polski
     with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
         boundary = json.load(gf)
 
@@ -81,11 +85,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <style>
     body{font-family:Arial,sans-serif;margin:20px;background:#f5f5f5;}
     h1,h2{text-align:center;color:#2c3e50;}
-    .summary{display:flex;justify-content:space-around;margin:20px 0;}
-    .summary-box{padding:15px;border-radius:8px;color:#fff;font-weight:bold;}
-    .alarm-summary{background:#e74c3c;} .warning-summary{background:#f1c40f;} .normal-summary{background:#2ecc71;}
-    #refresh-button{position:fixed;top:20px;right:20px;padding:10px 20px;background:#3498db;color:#fff;border:none;border-radius:5px;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,0.2);}
-    #refresh-button:hover{background:#2980b9;}
     .tabs{display:flex;gap:10px;margin-top:20px;}
     .tab-button{padding:10px 20px;background:#eee;border:none;border-radius:5px 5px 0 0;cursor:pointer;}
     .tab-button.active{background:#fff;border-bottom:2px solid #fff;}
@@ -102,22 +101,15 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 </head>
 <body>
   <h1>Dane hydrologiczne IMGW (hydro2)</h1>
-  <div class="summary">
-    <div class="summary-box alarm-summary">Alarmowe (≥500): {{ alarm_state|length }}</div>
-    <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
-    <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
-  </div>
-  <button id="refresh-button" onclick="window.location.href='/refresh'">Odśwież dane</button>
-
   <div class="tabs">
-    <button class="tab-button active" data-tab="table">Tabela</button>
+    <button class="tab-button" data-tab="table">Tabela</button>
     <button class="tab-button" data-tab="map">Mapa</button>
-    <button class="tab-button" data-tab="charts">Wykresy</button>
+    <button class="tab-button active" data-tab="charts">Wykresy</button>
   </div>
 
   <!-- Tabela -->
-  <div id="table" class="tab-content active">
-    <!-- ... Twoja istniejąca zawartość tabeli ... -->
+  <div id="table" class="tab-content">
+    <!-- istniejąca zawartość tabeli -->
   </div>
 
   <!-- Mapa -->
@@ -126,11 +118,11 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   </div>
 
   <!-- Wykresy -->
-  <div id="charts" class="tab-content">
+  <div id="charts" class="tab-content active">
     <h2>Liczba stacji wg kategorii</h2>
     <canvas id="stateChart"></canvas>
 
-    <h2>Rozkład stanów stacji</h2>
+    <h2>Rozkład stanów stacji (kołowy)</h2>
     <canvas id="pieChart"></canvas>
 
     <h2>Średni poziom wody</h2>
@@ -141,21 +133,20 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   </div>
 
   <div class="footer">
-    Ostatnia aktualizacja: {{ timestamp }} |
-    Rekordów: {{ data|length }}
+    Ostatnia aktualizacja: {{ timestamp }} | Rekordów: {{ data|length }}
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     // Zakładki
-    document.querySelectorAll('.tab-button').forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+    document.querySelectorAll('.tab-button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
         btn.classList.add('active');
         document.getElementById(btn.dataset.tab).classList.add('active');
-        if(btn.dataset.tab==='map') setTimeout(()=>map.invalidateSize(),200);
+        if (btn.dataset.tab === 'map') setTimeout(() => map.invalidateSize(), 200);
       });
     });
 
@@ -164,12 +155,22 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap contributors'
     }).addTo(map);
-    L.geoJSON({{ boundary|tojson }},{
+    L.geoJSON({{ boundary|tojson }}, {
       style:{color:'#555',weight:1,fill:false}
     }).addTo(map);
-    {{!-- Markery stacji jak dotychczas --}}
+    var stations = {{ data|tojson }};
+    stations.forEach(s => {
+      if (s.lon && s.lat) {
+        L.circleMarker([+s.lat, +s.lon], {
+          radius:5,
+          color: s.stan>=500?'red':(s.stan>=450?'orange':'green')
+        }).addTo(map).bindPopup(
+          `<b>${s.nazwa_stacji}</b><br>Stan: ${s.stan}`
+        );
+      }
+    });
 
-    // Bar Chart: liczba stacji
+    // Bar: liczba stacji
     new Chart(document.getElementById('stateChart'), {
       type:'bar',
       data:{
@@ -181,7 +182,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       options:{responsive:true,scales:{y:{beginAtZero:true}}}
     });
 
-    // Pie Chart
+    // Pie
     new Chart(document.getElementById('pieChart'), {
       type:'pie',
       data:{
@@ -193,13 +194,13 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       options:{responsive:true}
     });
 
-    // Gauge (doughnut half)
+    // Gauge (półokrągły)
     new Chart(document.getElementById('gaugeChart'), {
       type:'doughnut',
       data:{
         labels:['Średni poziom','Pozostało'],
         datasets:[{ data:[
-          {{ avg_level }}, {{ max_level - avg_level }}
+          {{ avg_level }}, {{ max_level-avg_level }}
         ] }]
       },
       options:{
@@ -209,7 +210,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       }
     });
 
-    // Top10 horizontal bar
+    // Top10 poziomo
     new Chart(document.getElementById('top10Chart'), {
       type:'bar',
       data:{
