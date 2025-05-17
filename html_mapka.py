@@ -33,12 +33,9 @@ def classify_water_levels(data):
     for row in data:
         try:
             lvl = float(row.get('stan', 0))
-            if lvl >= 500:
-                alarm.append(row)
-            elif lvl >= 450:
-                warning.append(row)
-            else:
-                normal.append(row)
+            if lvl >= 500:      alarm.append(row)
+            elif lvl >= 450:    warning.append(row)
+            else:               normal.append(row)
         except:
             continue
     return alarm, warning, normal
@@ -60,16 +57,14 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         'warning': len(warning_state),
         'normal': len(normal_state)
     }
-    levels = [float(r['stan']) for r in data if r.get('stan') is not None]
     # Top 10 stacji wg poziomu
-    top10 = sorted(
-        [(r['kod_stacji'], float(r['stan'])) for r in data if r.get('stan') is not None],
-        key=lambda x: x[1], reverse=True
-    )[:10]
-    top10_labels = [k for k, v in top10]
-    top10_values = [v for k, v in top10]
+    levels = [(r['kod_stacji'], float(r['stan'])) 
+              for r in data if r.get('stan') is not None]
+    top10 = sorted(levels, key=lambda x: x[1], reverse=True)[:10]
+    top10_labels = [k for k, _ in top10]
+    top10_values = [v for _, v in top10]
 
-    # 4) Wczytaj GeoJSON granic Polski
+    # 4) Wczytaj GeoJSON granic Polski jako Python‐owy dict
     with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
         boundary = json.load(gf)
 
@@ -127,7 +122,22 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 
   <!-- Tabela -->
   <div id="table" class="tab-content active">
-    <!-- [TU WSTAWIASZ SWOJĄ ISTNIEJĄCĄ ZAWARTOŚĆ TABELI] -->
+    {% if alarm_state %}
+      <h2>⚠️ Stany alarmowe (≥500)</h2>
+      <div class="table-container alarm">
+        <!-- ... Twoja istniejąca tabela alarmowa ... -->
+      </div>
+    {% endif %}
+    {% if warning_state %}
+      <h2>⚠️ Stany ostrzegawcze (450–499)</h2>
+      <div class="table-container warning">
+        <!-- ... Twoja istniejąca tabela ostrzegawcza ... -->
+      </div>
+    {% endif %}
+    <h2>Wszystkie stacje</h2>
+    <div class="table-container">
+      <!-- ... Twoja istniejąca tabela wszystkich stacji ... -->
+    </div>
   </div>
 
   <!-- Mapa -->
@@ -172,7 +182,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     }).addTo(map);
     var stations = {{ data|tojson }};
     stations.forEach(s=>{
-      if(s.lon&&s.lat){
+      if(s.lon && s.lat){
         L.circleMarker([+s.lat,+s.lon],{
           radius:5,
           color: s.stan>=500?'red':(s.stan>=450?'orange':'green')
@@ -194,7 +204,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       options:{ responsive:true, scales:{ y:{ beginAtZero:true } } }
     });
 
-    // Chart.js – Top 10
+    // Chart.js – Top 10 stacji
     new Chart(document.getElementById('top10Chart'), {
       type:'bar',
       data:{
@@ -207,7 +217,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         scales:{ x:{ beginAtZero:true } }
       }
     });
-
   </script>
 </body>
 </html>
