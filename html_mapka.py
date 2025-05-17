@@ -54,17 +54,19 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     # 2) Klasyfikacja stanów
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
-    # 3) Dodatkowe obliczenia do wykresów
+    # 3) Przygotuj dane do wykresów
     counts = {
         'alarm': len(alarm_state),
         'warning': len(warning_state),
         'normal': len(normal_state)
     }
-    level_vals = [float(r['stan']) for r in data if r.get('stan') is not None]
-    avg_level = sum(level_vals) / len(level_vals) if level_vals else 0
-    max_level = max(level_vals) if level_vals else 500
-    levels = [(r['kod_stacji'], float(r['stan'])) for r in data if r.get('stan') is not None]
-    top10 = sorted(levels, key=lambda x: x[1], reverse=True)[:10]
+    levels = [float(r['stan']) for r in data if r.get('stan') is not None]
+    avg_level = sum(levels) / len(levels) if levels else 0
+    max_level = max(levels) if levels else 500
+    top10 = sorted(
+        [(r['kod_stacji'], float(r['stan'])) for r in data if r.get('stan') is not None],
+        key=lambda x: x[1], reverse=True
+    )[:10]
     top10_labels = [k for k, v in top10]
     top10_values = [v for k, v in top10]
 
@@ -72,7 +74,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
         boundary = json.load(gf)
 
-    # 5) Szablon HTML z dodatkowymi wykresami
+    # 5) Szablon HTML
     tpl = Template("""
 <!DOCTYPE html>
 <html lang="pl">
@@ -128,8 +130,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   </div>
 
   <div class="footer">
-    Ostatnia aktualizacja: {{ timestamp }} |
-    Rekordów: {{ data|length }}
+    Ostatnia aktualizacja: {{ timestamp }} | Rekordów: {{ data|length }}
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -152,9 +153,8 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       attribution:'© OpenStreetMap contributors'
     }).addTo(map);
     L.geoJSON({{ boundary|tojson }}, {
-      style:{ color:'#555', weight:1, fill:false }
+      style:{color:'#555',weight:1,fill:false}
     }).addTo(map);
-    {{# Markery stacji #}}
     var stations = {{ data|tojson }};
     stations.forEach(s => {
       if (s.lat && s.lon) {
@@ -176,7 +176,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
           {{ counts.alarm }}, {{ counts.warning }}, {{ counts.normal }}
         ] }]
       },
-      options:{ responsive:true }
+      options:{responsive:true}
     });
 
     // GAUGE Chart (półokrągły)
