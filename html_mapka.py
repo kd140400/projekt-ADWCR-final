@@ -9,7 +9,7 @@ import json
 API_URL = "https://danepubliczne.imgw.pl/api/data/hydro2"
 # Plik CSV
 CSV_FILE = 'hydro_data.csv'
-# Plik GeoJSON granic Polski
+# Plik GeoJSON granic Polski (w tej samej ścieżce co skrypt)
 GEOJSON_FILE = 'poland.geojson'
 
 def fetch_new_data():
@@ -33,12 +33,9 @@ def classify_water_levels(data):
     for row in data:
         try:
             lvl = float(row.get('stan', 0))
-            if lvl >= 500:
-                alarm.append(row)
-            elif lvl >= 450:
-                warning.append(row)
-            else:
-                normal.append(row)
+            if lvl >= 500:      alarm.append(row)
+            elif lvl >= 450:    warning.append(row)
+            else:               normal.append(row)
         except:
             continue
     return alarm, warning, normal
@@ -50,31 +47,13 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         reader = csv.DictReader(f, delimiter=';')
         for r in reader:
             data.append({k: (v if v != '' else None) for k, v in r.items()})
-
-    # 2) Klasyfikacja stanów
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
-    # 3) Przygotuj dane do wykresów
-    counts = {
-        'alarm': len(alarm_state),
-        'warning': len(warning_state),
-        'normal': len(normal_state)
-    }
-    levels = [float(r['stan']) for r in data if r.get('stan') is not None]
-    avg_level = sum(levels) / len(levels) if levels else 0
-    max_level = max(levels) if levels else 500
-    top10 = sorted(
-        [(r['kod_stacji'], float(r['stan'])) for r in data if r.get('stan') is not None],
-        key=lambda x: x[1], reverse=True
-    )[:10]
-    top10_labels = [k for k, v in top10]
-    top10_values = [v for k, v in top10]
-
-    # 4) Wczytaj GeoJSON granic Polski
+    # 2) Wczytaj GeoJSON granic Polski jako Python‐owy dict
     with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
         boundary = json.load(gf)
 
-    # 5) Szablon HTML
+    # 3) Szablon HTML
     tpl = Template("""
 <!DOCTYPE html>
 <html lang="pl">
@@ -86,30 +65,80 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <style>
     body{font-family:Arial,sans-serif;margin:20px;background:#f5f5f5;}
     h1,h2{text-align:center;color:#2c3e50;}
+    .summary{display:flex;justify-content:space-around;margin:20px 0;}
+    .summary-box{padding:15px;border-radius:8px;color:#fff;font-weight:bold;}
+    .alarm-summary{background:#e74c3c;} .warning-summary{background:#f1c40f;} .normal-summary{background:#2ecc71;}
+    #refresh-button{position:fixed;top:20px;right:20px;padding:10px 20px;background:#3498db;color:#fff;border:none;border-radius:5px;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,0.2);}
+    #refresh-button:hover{background:#2980b9;}
     .tabs{display:flex;gap:10px;margin-top:20px;}
     .tab-button{padding:10px 20px;background:#eee;border:none;border-radius:5px 5px 0 0;cursor:pointer;}
     .tab-button.active{background:#fff;border-bottom:2px solid #fff;}
-    .tab-content{display:none;} .tab-content.active{display:block;}
+    .tab-content{display:none;}
+    .tab-content.active{display:block;}
     .table-container{overflow-x:auto;background:#fff;padding:20px;margin:20px 0;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    table{width:100%;border-collapse:collapse;font-size:0.9em;} th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;}
-    th{background:#3498db;color:#fff;position:sticky;top:0;} tr:nth-child(even){background:#f2f2f2;} tr:hover{background:#e6f7ff;}
+    table{width:100%;border-collapse:collapse;font-size:0.9em;}
+    th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;}
+    th{background:#3498db;color:#fff;position:sticky;top:0;}
+    tr:nth-child(even){background:#f2f2f2;} tr:hover{background:#e6f7ff;}
     .coords{font-family:monospace;} .null-value{color:#999;font-style:italic;}
+    .alarm td{background:#ffdddd;} .warning td{background:#fff3cd;}
     #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    canvas{max-width:100%;margin:20px 0;}
+    canvas{max-width:100%;}
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
 </head>
 <body>
   <h1>Dane hydrologiczne IMGW (hydro2)</h1>
+  <div class="summary">
+    <div class="summary-box alarm-summary">Alarmowe (≥500): {{ alarm_state|length }}</div>
+    <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
+    <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
+  </div>
+  <button id="refresh-button" onclick="window.location.href='/refresh'">Odśwież dane</button>
+
   <div class="tabs">
-    <button class="tab-button" data-tab="table">Tabela</button>
+    <button class="tab-button active" data-tab="table">Tabela</button>
     <button class="tab-button" data-tab="map">Mapa</button>
-    <button class="tab-button active" data-tab="charts">Wykresy</button>
+    <button class="tab-button" data-tab="charts">Wykresy</button>
   </div>
 
   <!-- Tabela -->
-  <div id="table" class="tab-content">
-    <!-- ... istniejąca tabela ... -->
+  <div id="table" class="tab-content active">
+    {% if alarm_state %}
+      <h2>⚠️ Stany alarmowe (≥500)</h2>
+      <div class="table-container alarm">
+        <table><thead><tr>
+          <th>Kod</th><th>Nazwa</th><th>Współrzędne</th><th>Stan</th><th>Data</th><th>Przepływ</th><th>Data przepływu</th>
+        </tr></thead>
+        <tbody>
+        {% for r in alarm_state %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">
+              {% if r.lon and r.lat %}
+                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+              {% else %}<span class="null-value">brak</span>{% endif %}
+            </td>
+            <td><strong>{{ r.stan }}</strong></td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+          </tr>
+        {% endfor %}
+        </tbody></table>
+      </div>
+    {% endif %}
+    {% if warning_state %}
+      <h2>⚠ Stany ostrzegawcze (450–499)</h2>
+      <div class="table-container warning">
+        <!-- analogicznie jak wyżej -->
+      </div>
+    {% endif %}
+    <h2>Wszystkie stacje</h2>
+    <div class="table-container">
+      <!-- analogicznie pełna tabela -->
+    </div>
   </div>
 
   <!-- Mapa -->
@@ -118,115 +147,87 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   </div>
 
   <!-- Wykresy -->
-  <div id="charts" class="tab-content active">
-    <h2>Rozkład stanów stacji</h2>
-    <canvas id="pieChart"></canvas>
-
-    <h2>Średni poziom wody</h2>
-    <canvas id="gaugeChart"></canvas>
-
-    <h2>Top 10 stacji wg poziomu</h2>
-    <canvas id="top10Chart"></canvas>
+  <div id="charts" class="tab-content">
+    <canvas id="stateChart"></canvas>
   </div>
 
   <div class="footer">
-    Ostatnia aktualizacja: {{ timestamp }} | Rekordów: {{ data|length }}
+    Ostatnia aktualizacja: {{ timestamp }} |
+    Rekordów: {{ data|length }} |
+    Alarmowych: {{ alarm_state|length }} |
+    Ostrzegawczych: {{ warning_state|length }}
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script>
     // Zakładki
-    document.querySelectorAll('.tab-button').forEach(btn => {
-      btn.addEventListener('click', () => {
-        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-        btn.classList.add('active');
+    document.querySelectorAll('.tab-button').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+        document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
         document.getElementById(btn.dataset.tab).classList.add('active');
-        if (btn.dataset.tab === 'map') setTimeout(() => map.invalidateSize(), 200);
+        btn.classList.add('active');
+        if(btn.dataset.tab==='map') setTimeout(()=>map.invalidateSize(),200);
       });
     });
 
-    // Leaflet
-    var map = L.map('leaflet-map').setView([52.0, 19.0], 6);
+    // Leaflet: mapa + granice z wstrzykniętego boundary
+    var map = L.map('leaflet-map').setView([52.0,19.0],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap contributors'
     }).addTo(map);
-    L.geoJSON({{ boundary|tojson }}, {
-      style:{color:'#555',weight:1,fill:false}
-    }).addTo(map);
+
+    var boundary = {{ boundary|tojson }};
+    L.geoJSON(boundary,{style:{color:'#555',weight:1,fill:false}}).addTo(map);
+
+    // Markery stacji
     var stations = {{ data|tojson }};
-    stations.forEach(s => {
-      if (s.lat && s.lon) {
-        L.circleMarker([+s.lat, +s.lon], {
+    stations.forEach(s=>{
+      if(s.lon&&s.lat){
+        var m=L.circleMarker([+s.lat,+s.lon],{
           radius:5,
           color: s.stan>=500?'red':(s.stan>=450?'orange':'green')
-        }).addTo(map).bindPopup(
-          `<b>${s.nazwa_stacji}</b><br>Stan: ${s.stan}`
+        }).addTo(map);
+        m.bindPopup(
+          `<b>${s.nazwa_stacji||'—'}</b><br>`+
+          `Stan: ${s.stan||'—'}<br>`+
+          `Data: ${s.stan_data||'—'}`
         );
       }
     });
 
-    // PIE Chart
-    new Chart(document.getElementById('pieChart'), {
-      type: 'pie',
-      data: {
-        labels: ['Alarmowe','Ostrzegawcze','Normalne'],
-        datasets:[{ data: [
-          {{ counts.alarm }}, {{ counts.warning }}, {{ counts.normal }}
-        ] }]
-      },
-      options:{responsive:true}
-    });
-
-    // GAUGE Chart (półokrągły)
-    new Chart(document.getElementById('gaugeChart'), {
-      type:'doughnut',
-      data:{
-        labels:['Średni poziom','Pozostało'],
-        datasets:[{ data:[
-          {{ avg_level }}, {{ max_level - avg_level }}
-        ] }]
-      },
-      options:{
-        responsive:true,
-        circumference: Math.PI,
-        rotation: Math.PI
-      }
-    });
-
-    // TOP10 Chart
-    new Chart(document.getElementById('top10Chart'), {
+    // Chart.js
+    var ctx=document.getElementById('stateChart').getContext('2d');
+    new Chart(ctx,{
       type:'bar',
       data:{
-        labels: {{ top10_labels|tojson }},
-        datasets:[{ label:'Poziom wody', data: {{ top10_values|tojson }} }]
+        labels:['Alarmowe','Ostrzegawcze','Normalne'],
+        datasets:[{
+          label:'Liczba stacji',
+          data:[
+            {{ alarm_state|length }},
+            {{ warning_state|length }},
+            {{ normal_state|length }}
+          ]
+        }]
       },
-      options:{
-        indexAxis:'y',
-        responsive:true,
-        scales:{ x:{ beginAtZero:true } }
-      }
+      options:{responsive:true,scales:{y:{beginAtZero:true}}}
     });
   </script>
 </body>
 </html>
     """)
 
+    # Render i zapis
     rendered = tpl.render(
         data=data,
         alarm_state=alarm_state,
         warning_state=warning_state,
         normal_state=normal_state,
-        counts=counts,
-        avg_level=avg_level,
-        max_level=max_level,
-        top10_labels=top10_labels,
-        top10_values=top10_values,
-        boundary=boundary,
-        timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        boundary=boundary
     )
-
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(rendered)
     print(f"✅ Wygenerowano {output_file}")
