@@ -103,7 +103,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
     <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
   </div>
-  <button id="refresh-button" onclick="window.location.href='/refresh'">Odśwież dane</button>
+  <button id="refresh-button" onclick="location.reload()">Odśwież dane</button>
 
   <div class="tabs">
     <button class="tab-button active" data-tab="table">Tabela</button>
