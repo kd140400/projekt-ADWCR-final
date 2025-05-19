@@ -112,11 +112,13 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
     .stats-table th{background:#3498db;color:#fff;}
     canvas{max-width:100%;margin:20px 0;}
+    /* --- TUTAJ DODANE STYLE FILTRÓW --- */
     .filters-panel{position:absolute;top:60px;right:20px;z-index:1000;background:white;padding:15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);max-height:80%;overflow:auto;}
     .filters-panel h4{margin:15px 0 5px;}
     .filter-group{max-height:120px;overflow-y:auto;border:1px solid #ddd;padding:5px;margin-bottom:10px;}
     .filter-group label{display:block;}
     .filters-panel button{margin-top:5px;}
+    /* --- koniec filtrów --- */
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
 </head>
@@ -137,48 +139,129 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 
   <!-- Tabela -->
   <div id="table" class="tab-content active">
-    <!-- … tabela jak wcześniej … -->
+    {% if alarm_state %}
+      <h2>⚠️ Stany alarmowe (≥500)</h2>
+      <div class="table-container alarm">
+        <table><thead><tr>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data pomiaru</th>
+          <th>Przepływ</th><th>Data przepływu</th>
+        </tr></thead><tbody>
+        {% for r in alarm_state %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">{% if r.lon and r.lat %}{{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}{% else %}<span class="null-value">brak</span>{% endif %}</td>
+            <td><strong>{{ r.stan }}</strong></td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+          </tr>
+        {% endfor %}
+        </tbody></table>
+      </div>
+    {% endif %}
+    {% if warning_state %}
+      <h2>⚠️ Stany ostrzegawcze (450–499)</h2>
+      <div class="table-container warning">
+        <table><thead><tr>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data pomiaru</th>
+          <th>Przepływ</th><th>Data przepływu</th>
+        </tr></thead><tbody>
+        {% for r in warning_state %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">{% if r.lon and r.lat %}{{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}{% else %}<span class="null-value">brak</span>{% endif %}</td>
+            <td><strong>{{ r.stan }}</strong></td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+          </tr>
+        {% endfor %}
+        </tbody></table>
+      </div>
+    {% endif %}
+    <h2>Wszystkie stacje</h2>
+    <div class="table-container">
+      <table><thead><tr>
+        <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+        <th>Stan wody</th><th>Data pomiaru</th>
+        <th>Przepływ</th><th>Data przepływu</th><th>Status</th>
+      </tr></thead><tbody>
+        {% for r in data %}
+          {% set lvl = r.stan is not none and r.stan|float %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">{% if r.lon and r.lat %}{{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}{% else %}<span class="null-value">brak</span>{% endif %}</td>
+            <td>
+              {% if lvl >= 500 %}<strong style="color:red">{{ r.stan }}</strong>
+              {% elif lvl >= 450 %}<strong style="color:orange">{{ r.stan }}</strong>
+              {% else %}{{ r.stan or '<span class="null-value">brak</span>'|safe }}{% endif %}
+            </td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>
+              {% if lvl >= 500 %}<span style="color:red">ALARM</span>
+              {% elif lvl >= 450 %}<span style="color:orange">OSTRZEŻENIE</span>
+              {% else %}<span style="color:green">NORMALNY</span>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody></table>
+    </div>
   </div>
 
   <!-- Mapa -->
-  <div id="map" class="tab-content" style="position:relative;">
+  <div id="map" class="tab-content">
     <h2>Mapa stacji</h2>
     <div class="filters-panel">
-      <h4>Stan wody <button onclick="clearCategory('state')">Wyczyść filtr</button></h4>
+      <h4>Stan wody <button onclick="clearCategory('state')">Wyczyść</button></h4>
       <div class="filter-group">
         <label><input type="checkbox" class="stateFilter" value="alarm" checked> Alarmowe</label>
         <label><input type="checkbox" class="stateFilter" value="warning" checked> Ostrzegawcze</label>
         <label><input type="checkbox" class="stateFilter" value="normal" checked> Normalne</label>
       </div>
-
-      <h4>Nazwa stacji <button onclick="clearCategory('name')">Wyczyść filtr</button></h4>
+      <h4>Nazwa stacji <button onclick="clearCategory('name')">Wyczyść</button></h4>
       <div class="filter-group">
         {% for n in unique_names %}
           <label><input type="checkbox" class="nameFilter" value="{{ n }}" checked> {{ n }}</label>
         {% endfor %}
       </div>
-
-      <h4>Kod stacji <button onclick="clearCategory('code')">Wyczyść filtr</button></h4>
+      <h4>Kod stacji <button onclick="clearCategory('code')">Wyczyść</button></h4>
       <div class="filter-group">
         {% for c in unique_codes %}
           <label><input type="checkbox" class="codeFilter" value="{{ c }}" checked> {{ c }}</label>
         {% endfor %}
       </div>
-
-      <h4>Zakres stanu <button onclick="clearRange()">Wyczyść filtr</button></h4>
+      <h4>Zakres stanu <button onclick="clearRange()">Wyczyść</button></h4>
       <div class="filter-group">
         <label>Od <input type="number" id="minLevel" value="0"></label>
         <label>Do <input type="number" id="maxLevel" value="10000"></label>
       </div>
-
-      <button onclick="filterMarkers()">Filtruj na mapie</button>
+      <button onclick="filterMarkers()">Filtruj</button>
     </div>
     <div id="leaflet-map"></div>
   </div>
 
   <!-- Wykresy i statystyki -->
   <div id="charts" class="tab-content">
-    <!-- … wykresy i statystyki jak wcześniej … -->
+    <h2>Statystyki stanu wody</h2>
+    <table class="stats-table">
+      <thead><tr><th>Metryka</th><th>Wartość</th></tr></thead>
+      <tbody>
+        {% for k,v in stats.items() %}
+        <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    <h2>Liczba stacji wg kategorii</h2>
+    <canvas id="stateChart"></canvas>
+    <h2>Top 10 stacji wg poziomu</h2>
+    <canvas id="top10Chart"></canvas>
   </div>
 
   <div class="footer">
@@ -202,56 +285,45 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     });
 
-    // Leaflet
+    // Leaflet + popup
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'© OpenStreetMap contributors' }).addTo(map);
     L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
 
-    var stations = {{ data|tojson }};
-    var markers = [];
+    var stations = {{ data|tojson }}, markers=[];
     stations.forEach(s=>{
       if(s.lon && s.lat){
-        var cat = s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
-        var m = L.circleMarker([+s.lat,+s.lon],{ radius:5, color: cat==='alarm'?'red':(cat==='warning'?'orange':'green') })
+        let cat = s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
+        let m = L.circleMarker([+s.lat,+s.lon],{radius:5,color:cat==='alarm'?'red':cat==='warning'?'orange':'green'})
           .bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`)
           .addTo(map);
-        m.category = cat;
-        m.stationName = s.nazwa_stacji;
-        m.stationCode = s.kod_stacji;
-        m.level = +s.stan;
+        m.category=cat; m.stationName=s.nazwa_stacji; m.stationCode=s.kod_stacji; m.level=+s.stan;
         markers.push(m);
       }
     });
-
     // Legenda
-    var legend = L.control({position:'bottomright'});
-    legend.onAdd = function(){
-      var div = L.DomUtil.create('div','legend');
-      div.innerHTML += '<i style="background:red"></i> Alarmowe<br>';
-      div.innerHTML += '<i style="background:orange"></i> Ostrzegawcze<br>';
-      div.innerHTML += '<i style="background:green"></i> Normalne';
+    L.control({position:'bottomright'}).onAdd=map=>{
+      let div=L.DomUtil.create('div','legend');
+      div.innerHTML='<i style="background:red"></i> Alarmowe<br><i style="background:orange"></i> Ostrzegawcze<br><i style="background:green"></i> Normalne';
       return div;
-    };
-    legend.addTo(map);
+    }.addTo(map);
 
-    // Filtracja
+    // Filtry
     function filterMarkers(){
-      var selStates = Array.from(document.querySelectorAll('.stateFilter:checked')).map(cb=>cb.value);
-      var selNames  = Array.from(document.querySelectorAll('.nameFilter:checked')).map(cb=>cb.value);
-      var selCodes  = Array.from(document.querySelectorAll('.codeFilter:checked')).map(cb=>cb.value);
-      var minL = +document.getElementById('minLevel').value;
-      var maxL = +document.getElementById('maxLevel').value;
+      let selStates=Array.from(document.querySelectorAll('.stateFilter:checked')).map(cb=>cb.value);
+      let selNames=Array.from(document.querySelectorAll('.nameFilter:checked')).map(cb=>cb.value);
+      let selCodes=Array.from(document.querySelectorAll('.codeFilter:checked')).map(cb=>cb.value);
+      let minL=+document.getElementById('minLevel').value, maxL=+document.getElementById('maxLevel').value;
       markers.forEach(m=>{
-        var ok = selStates.includes(m.category)
+        let ok = selStates.includes(m.category)
               && selNames.includes(m.stationName)
               && selCodes.includes(m.stationCode)
               && m.level>=minL && m.level<=maxL;
-        if(ok) map.addLayer(m); else map.removeLayer(m);
+        ok?map.addLayer(m):map.removeLayer(m);
       });
     }
     function clearCategory(cat){
-      var cls = cat+'Filter';
-      document.querySelectorAll('.'+cls).forEach(cb=>cb.checked=false);
+      document.querySelectorAll('.'+cat+'Filter').forEach(cb=>cb.checked=false);
       filterMarkers();
     }
     function clearRange(){
@@ -260,7 +332,20 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       filterMarkers();
     }
 
-    // … wykresy Chart.js jak wcześniej …
+    // Chart.js – statystyki
+    new Chart(document.getElementById('stateChart'), {
+      type: 'pie',
+      data:{
+        labels:['Alarmowe','Ostrzegawcze','Normalne'],
+        datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]
+      },
+      options:{responsive:true,plugins:{datalabels:{formatter:(v,ctx)=>{let sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (v/sum*100).toFixed(1)+'%';},color:'#fff',font:{weight:'bold',size:14}},legend:{position:'bottom'}}}
+    });
+    new Chart(document.getElementById('top10Chart'), {
+      type: 'bar',
+      data:{labels:{{ top10_labels_full|tojson }},datasets:[{label:'Poziom',data:{{ top10_values|tojson }}}]},
+      options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
+    });
   </script>
 </body>
 </html>
