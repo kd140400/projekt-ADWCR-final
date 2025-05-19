@@ -6,11 +6,8 @@ import pandas as pd
 import json
 import statistics
 
-# URL API hydro2
 API_URL = "https://danepubliczne.imgw.pl/api/data/hydro2"
-# Plik CSV
 CSV_FILE = 'hydro_data.csv'
-# Plik GeoJSON granic Polski
 GEOJSON_FILE = 'poland.geojson'
 
 def fetch_new_data():
@@ -79,12 +76,10 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         boundary = json.load(gf)
 
     # 7) Szablon HTML
-    tpl = Template("""
-<!DOCTYPE html>
+    tpl = Template("""<!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Dane hydrologiczne IMGW (hydro2)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
@@ -107,8 +102,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .legend i{width:12px;height:12px;display:inline-block;margin-right:6px;opacity:0.7;}
     .filters{position:absolute;top:100px;right:20px;width:220px;background:#fff;border:1px solid #ccc;padding:10px;border-radius:5px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
     .filters label{display:block;margin-bottom:8px;font-size:0.9em;}
-    .filters select{width:100%;height:4em;}
-    .filters input{width:70px;}
+    .filters select, .filters input{width:100%;}
     .stats-table{width:60%;margin:0 auto 20px;border-collapse:collapse;}
     .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
     .stats-table th{background:#3498db;color:#fff;}
@@ -239,59 +233,55 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       };
     });
 
-    // Leaflet setup
+    // Leaflet + granice
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'}).addTo(map);
     L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
 
-    // Markery
-    var markers = [];
-    {{ data|tojson }}.forEach(s => {
+    // Markery i przechowywanie
+    var markers=[]; {{ data|tojson }}.forEach(s=>{
       if(s.lat && s.lon){
-        var cat = s.stan>=500 ? 'alarm' : (s.stan>=450 ? 'warning' : 'normal');
-        var m = L.circleMarker([+s.lat,+s.lon],{
-          radius:5, color: cat==='alarm'?'red': cat==='warning'?'orange':'green'
-        })
-        .bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`);
-        m.cat = cat; m.name = s.nazwa_stacji; m.code = s.kod_stacji; m.level = +s.stan;
+        var cat = s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
+        var m = L.circleMarker([+s.lat,+s.lon],{radius:5,
+          color:cat==='alarm'?'red':cat==='warning'?'orange':'green'
+        }).bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`);
+        m.cat=cat; m.name=s.nazwa_stacji; m.code=s.kod_stacji; m.level=+s.stan;
         m.addTo(map); markers.push(m);
       }
     });
 
     // Legenda
-    L.control({position:'bottomright'}).onAdd = (map) => {
-      var div = L.DomUtil.create('div','legend');
-      div.innerHTML = '<i style="background:red"></i> Alarmowe<br>'
-                    + '<i style="background:orange"></i> Ostrzegawcze<br>'
-                    + '<i style="background:green"></i> Normalne';
+    L.control({position:'bottomright'}).onAdd=()=> {
+      var div=L.DomUtil.create('div','legend');
+      div.innerHTML='<i style="background:red"></i> Alarmowe<br>'
+                  +'<i style="background:orange"></i> Ostrzegawcze<br>'
+                  +'<i style="background:green"></i> Normalne';
       return div;
     }.addTo(map);
 
-    // Filtracja
+    // Filtry
     function filterMarkers(){
-      var st = Array.from(stateFilter.selectedOptions).map(o=>o.value),
-          nm = Array.from(nameFilter.selectedOptions).map(o=>o.value),
-          cd = Array.from(codeFilter.selectedOptions).map(o=>o.value),
-          min = +minLevel.value, max = +maxLevel.value;
+      var st=Array.from(stateFilter.selectedOptions).map(o=>o.value),
+          nm=Array.from(nameFilter.selectedOptions).map(o=>o.value),
+          cd=Array.from(codeFilter.selectedOptions).map(o=>o.value),
+          min=+minLevel.value, max=+maxLevel.value;
       markers.forEach(m=>{
-        var ok = st.includes(m.cat) && nm.includes(m.name) && cd.includes(m.code)
-                 && m.level>=min && m.level<=max;
-        ok ? map.addLayer(m) : map.removeLayer(m);
+        var ok=st.includes(m.cat)&&nm.includes(m.name)&&cd.includes(m.code)
+               &&m.level>=min&&m.level<=max;
+        ok?map.addLayer(m):map.removeLayer(m);
       });
     }
     function resetFilters(){
-      [stateFilter,nameFilter,codeFilter].forEach(s=>{
-        Array.from(s.options).forEach(o=>o.selected=true);
-      });
+      [stateFilter,nameFilter,codeFilter].forEach(s=>
+        Array.from(s.options).forEach(o=>o.selected=true)
+      );
       minLevel.value=0; maxLevel.value=10000;
       filterMarkers();
     }
 
-    // Chart.js – wykresy
-    new Chart(stateChart,{
-      type:'pie',
-      data:{
-        labels:['Alarmowe','Ostrzegawcze','Normalne'],
+    // Wykresy
+    new Chart(stateChart,{type:'pie',
+      data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],
         datasets:[{data:[{{counts.alarm}},{{counts.warning}},{{counts.normal}}]}]
       },
       options:{
@@ -299,20 +289,18 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         plugins:{
           datalabels:{
             formatter:(v,ctx)=>{
-              const sum = ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+              const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
               return (v/sum*100).toFixed(1)+'%';
             },
-            color:'#fff', font:{weight:'bold'}
+            color:'#fff',font:{weight:'bold'}
           },
           legend:{position:'bottom'}
         }
       }
     });
 
-    new Chart(top10Chart,{
-      type:'bar',
-      data:{
-        labels:{{top10_labels_full|tojson}},
+    new Chart(top10Chart,{type:'bar',
+      data:{labels:{{top10_labels_full|tojson}},
         datasets:[{label:'Poziom wody',data:{{top10_values|tojson}}}]
       },
       options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
@@ -336,7 +324,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         boundary=boundary,
         timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
-
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(rendered)
     print(f"✅ Wygenerowano {output_file}")
