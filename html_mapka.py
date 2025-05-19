@@ -83,47 +83,32 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Dane hydrologiczne IMGW (hydro2)</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <style>
-    body{font-family:Arial,sans-serif;margin:20px;background:#f5f5f5;}
-    h1,h2{text-align:center;color:#2c3e50;}
-    .summary{display:flex;justify-content:space-around;margin:20px 0;}
-    .summary-box{padding:15px;border-radius:8px;color:#fff;font-weight:bold;}
-    .alarm-summary{background:#e74c3c;} .warning-summary{background:#f1c40f;} .normal-summary{background:#2ecc71;}
-    #refresh-button{position:fixed;top:20px;right:20px;padding:10px 20px;background:#3498db;color:#fff;border:none;border-radius:5px;cursor:pointer;box-shadow:0 4px 8px rgba(0,0,0,0.2);}
-    #refresh-button:hover{background:#2980b9;}
-    .tabs{display:flex;gap:10px;margin-top:20px;}
-    .tab-button{padding:10px 20px;background:#eee;border:none;border-radius:5px 5px 0 0;cursor:pointer;}
-    .tab-button.active{background:#fff;border-bottom:2px solid #fff;}
-    .tab-content{display:none;} .tab-content.active{display:block;}
-    .table-container{overflow-x:auto;background:#fff;padding:20px;margin:20px 0;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    table{width:100%;border-collapse:collapse;font-size:0.9em;} 
-    th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;} 
-    th{background:#3498db;color:#fff;position:sticky;top:0;} 
-    tr:nth-child(even){background:#f2f2f2;} tr:hover{background:#e6f7ff;}
-    .coords{font-family:monospace;} .null-value{color:#999;font-style:italic;}
-    .alarm td{background:#ffdddd;} .warning td{background:#fff3cd;}
-    #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    .legend{background:white;padding:6px 8px;font-size:14px;line-height:18px;color:#555;box-shadow:0 0 15px rgba(0,0,0,0.2);border-radius:5px;}
-    .legend i{width:12px;height:12px;float:left;margin-right:6px;opacity:0.7;}
-    .filters{position:absolute;top:20px;right:20px;z-index:1000;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);max-height:80%;overflow:auto;}
-    .filters select{width:180px;margin-bottom:10px;}
-    .filters input[type="number"]{width:80px;}
-    .filters button.clear-btn{margin-left:4px;}
-    .stats-table{width:50%;margin:0 auto 20px;border-collapse:collapse;}
-    .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
-    .stats-table th{background:#3498db;color:#fff;}
-    canvas{max-width:100%;margin:20px 0;}
-    .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
-  </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dane hydrologiczne IMGW</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+  body{font-family:Arial,sans-serif;margin:20px;background:#f5f5f5;}
+  h1,h2{text-align:center;color:#2c3e50;}
+  .summary{display:flex;justify-content:space-around;margin:20px 0;}
+  .summary-box{padding:15px;border-radius:8px;color:#fff;font-weight:bold;}
+  .alarm-summary{background:#e74c3c;} .warning-summary{background:#f1c40f;} .normal-summary{background:#2ecc71;}
+  #refresh-button{position:fixed;top:20px;right:20px;padding:10px 20px;background:#3498db;color:#fff;border:none;border-radius:5px;cursor:pointer;}
+  .tabs{display:flex;gap:10px;margin-top:20px;}
+  .tab-button{padding:10px 20px;background:#eee;border:none;border-radius:5px 5px 0 0;cursor:pointer;}
+  .tab-button.active{background:#fff;border-bottom:2px solid #fff;}
+  .tab-content{display:none;} .tab-content.active{display:block;}
+  .filters{position:absolute;top:60px;right:20px;width:200px;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);max-height:80%;overflow:auto;}
+  .filters h3{margin:0 0 8px;}
+  .filters div{margin-bottom:10px;}
+  #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
+  .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
+</style>
 </head>
 <body>
   <h1>Dane hydrologiczne IMGW (hydro2)</h1>
   <div class="summary">
     <div class="summary-box alarm-summary">Alarmowe (≥500): {{ alarm_state|length }}</div>
-    <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
+    <div class="summary-box warning-summary">Ostrzegawcze (450–499): {{ warning_state|length }}</div>
     <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
   </div>
   <button id="refresh-button" onclick="location.reload()">Odśwież dane</button>
@@ -136,43 +121,42 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 
   <!-- Tabela -->
   <div id="table" class="tab-content active">
-    <!-- ... pełna zawartość tabeli bez zmian ... -->
+    <!-- ... Twoja tabela bez zmian ... -->
   </div>
 
   <!-- Mapa -->
   <div id="map" class="tab-content" style="position:relative;">
     <h2>Mapa stacji</h2>
     <div class="filters">
-      <label>Stan wody:<br>
-        <select id="stateFilter" multiple>
-          <option value="alarm" selected>Alarmowe</option>
-          <option value="warning" selected>Ostrzegawcze</option>
-          <option value="normal" selected>Normalne</option>
-        </select>
-        <button class="clear-btn" id="clearState">Wyczyść</button>
-      </label><br>
-      <label>Nazwa stacji:<br>
-        <select id="nameFilter" multiple>
-          {% for name in unique_names %}
-          <option value="{{ name }}" selected>{{ name }}</option>
-          {% endfor %}
-        </select>
-        <button class="clear-btn" id="clearName">Wyczyść</button>
-      </label><br>
-      <label>Kod stacji:<br>
-        <select id="codeFilter" multiple>
-          {% for code in unique_codes %}
-          <option value="{{ code }}" selected>{{ code }}</option>
-          {% endfor %}
-        </select>
-        <button class="clear-btn" id="clearCode">Wyczyść</button>
-      </label><br>
-      <label>Zakres stanu wody:<br>
-        <input type="number" id="minLevel" value="0"> –
-        <input type="number" id="maxLevel" value="10000">
+      <h3>Filtry</h3>
+      <div>
+        <strong>Stan wody:</strong><br>
+        <label><input type="checkbox" id="selectAllStates" checked> Wszystkie</label><br>
+        <label><input type="checkbox" class="filter-state" value="alarm" checked> Alarmowe</label><br>
+        <label><input type="checkbox" class="filter-state" value="warning" checked> Ostrzegawcze</label><br>
+        <label><input type="checkbox" class="filter-state" value="normal" checked> Normalne</label>
+      </div>
+      <div>
+        <strong>Nazwa stacji:</strong><br>
+        <label><input type="checkbox" id="selectAllNames" checked> Wszystkie</label><br>
+        {% for name in unique_names %}
+        <label><input type="checkbox" class="filter-name" value="{{ name }}" checked> {{ name }}</label><br>
+        {% endfor %}
+      </div>
+      <div>
+        <strong>Kod stacji:</strong><br>
+        <label><input type="checkbox" id="selectAllCodes" checked> Wszystkie</label><br>
+        {% for code in unique_codes %}
+        <label><input type="checkbox" class="filter-code" value="{{ code }}" checked> {{ code }}</label><br>
+        {% endfor %}
+      </div>
+      <div>
+        <strong>Zakres stanu:</strong><br>
+        <input type="number" id="minLevel" value="0" style="width:60px;"> –
+        <input type="number" id="maxLevel" value="10000" style="width:60px;">
         <button id="applyRange">OK</button>
-        <button class="clear-btn" id="clearRange">Wyczyść</button>
-      </label>
+        <button id="clearRange">Czyść</button>
+      </div>
     </div>
     <div id="leaflet-map"></div>
   </div>
@@ -180,11 +164,11 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <!-- Wykresy i statystyki -->
   <div id="charts" class="tab-content">
     <h2>Statystyki stanu wody</h2>
-    <table class="stats-table">
-      <thead><tr><th>Metryka</th><th>Wartość</th></tr></thead>
+    <table style="margin:0 auto 20px;border-collapse:collapse;">
+      <thead><tr><th style="border:1px solid #ddd;padding:8px;">Metryka</th><th style="border:1px solid #ddd;padding:8px;">Wartość</th></tr></thead>
       <tbody>
         {% for k,v in stats.items() %}
-        <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+        <tr><td style="border:1px solid #ddd;padding:8px;">{{ k }}</td><td style="border:1px solid #ddd;padding:8px;">{{ v }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -203,7 +187,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script>
     Chart.register(ChartDataLabels);
-
     // Zakładki
     document.querySelectorAll('.tab-button').forEach(btn=>{
       btn.addEventListener('click',()=>{
@@ -217,93 +200,83 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 
     // Leaflet + marker storage
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap contributors'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap'})
+      .addTo(map);
     L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
 
-    var stations = {{ data|tojson }};
-    var markers = [];
+    var stations = {{ data|tojson }}, markers = [];
     stations.forEach(s=>{
       if(s.lon && s.lat){
-        var category = s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
+        var cat = s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
         var m = L.circleMarker([+s.lat,+s.lon],{
-          radius:5,
-          color: category==='alarm'?'red':(category==='warning'?'orange':'green')
-        }).bindPopup(
-          `<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`
-        );
-        m.category = category;
-        m.stationName = s.nazwa_stacji;
-        m.stationCode = s.kod_stacji;
-        m.level = +s.stan;
-        m.addTo(map);
-        markers.push(m);
+          radius:5, color: cat==='alarm'?'red':(cat==='warning'?'orange':'green')
+        }).bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`);
+        m.category=cat; m.stationName=s.nazwa_stacji; m.stationCode=s.kod_stacji; m.level=+s.stan;
+        m.addTo(map); markers.push(m);
       }
     });
 
-    // Legenda mapy
-    var legend = L.control({position:'bottomright'});
-    legend.onAdd = function(map) {
-      var div = L.DomUtil.create('div','legend');
-      div.innerHTML += '<i style="background:red"></i> Stany alarmowe<br>';
-      div.innerHTML += '<i style="background:orange"></i> Stany ostrzegawcze<br>';
-      div.innerHTML += '<i style="background:green"></i> Stany normalne';
-      return div;
-    };
-    legend.addTo(map);
+    // Legenda
+    L.control({position:'bottomright'}).onAdd = map=>{
+      var d=L.DomUtil.create('div','legend');
+      d.innerHTML='<i style="background:red"></i>Alarmowe<br><i style="background:orange"></i>Ostrz.<br><i style="background:green"></i>Normalne';
+      return d;
+    }.addTo(map);
 
-    // Funkcja filtrująca
+    // Filtr
     function filterMarkers(){
-      var selStates = Array.from(document.getElementById('stateFilter').selectedOptions).map(o=>o.value);
-      var selNames  = Array.from(document.getElementById('nameFilter').selectedOptions).map(o=>o.value);
-      var selCodes  = Array.from(document.getElementById('codeFilter').selectedOptions).map(o=>o.value);
-      var minL = +document.getElementById('minLevel').value;
-      var maxL = +document.getElementById('maxLevel').value;
+      var selStates=Array.from(document.querySelectorAll('.filter-state:checked')).map(i=>i.value);
+      var selNames=Array.from(document.querySelectorAll('.filter-name:checked')).map(i=>i.value);
+      var selCodes=Array.from(document.querySelectorAll('.filter-code:checked')).map(i=>i.value);
+      var minL=+document.getElementById('minLevel').value, maxL=+document.getElementById('maxLevel').value;
       markers.forEach(m=>{
-        var ok = selStates.includes(m.category)
-             && selNames.includes(m.stationName)
-             && selCodes.includes(m.stationCode)
-             && m.level>=minL && m.level<=maxL;
-        if(ok) map.addLayer(m); else map.removeLayer(m);
+        var ok=selStates.includes(m.category)
+            && selNames.includes(m.stationName)
+            && selCodes.includes(m.stationCode)
+            && m.level>=minL&&m.level<=maxL;
+        ok?map.addLayer(m):map.removeLayer(m);
       });
     }
 
-    // Funkcja czyszcząca select
-    function clearSelect(id){
-      var sel = document.getElementById(id);
-      Array.from(sel.options).forEach(o=>o.selected=false);
+    // Select All handlers
+    document.getElementById('selectAllStates').onclick = ()=>{
+      var chk = document.getElementById('selectAllStates').checked;
+      document.querySelectorAll('.filter-state').forEach(c=>c.checked=chk);
       filterMarkers();
-    }
+    };
+    document.getElementById('selectAllNames').onclick = ()=>{
+      var chk = document.getElementById('selectAllNames').checked;
+      document.querySelectorAll('.filter-name').forEach(c=>c.checked=chk);
+      filterMarkers();
+    };
+    document.getElementById('selectAllCodes').onclick = ()=>{
+      var chk = document.getElementById('selectAllCodes').checked;
+      document.querySelectorAll('.filter-code').forEach(c=>c.checked=chk);
+      filterMarkers();
+    };
 
-    // Czyść zakres
-    function clearRange(){
+    // Individual checkboxes
+    document.querySelectorAll('.filter-state').forEach(c=>c.onchange=filterMarkers);
+    document.querySelectorAll('.filter-name').forEach(c=>c.onchange=filterMarkers);
+    document.querySelectorAll('.filter-code').forEach(c=>c.onchange=filterMarkers);
+
+    // Range
+    document.getElementById('applyRange').onclick=filterMarkers;
+    document.getElementById('clearRange').onclick=()=>{
       document.getElementById('minLevel').value=0;
       document.getElementById('maxLevel').value=10000;
       filterMarkers();
-    }
+    };
 
-    // Eventy
-    ['stateFilter','nameFilter','codeFilter'].forEach(id=>{
-      document.getElementById(id).addEventListener('change', filterMarkers);
-    });
-    document.getElementById('applyRange').addEventListener('click', filterMarkers);
-    document.getElementById('clearState').addEventListener('click', ()=>clearSelect('stateFilter'));
-    document.getElementById('clearName').addEventListener('click', ()=>clearSelect('nameFilter'));
-    document.getElementById('clearCode').addEventListener('click', ()=>clearSelect('codeFilter'));
-    document.getElementById('clearRange').addEventListener('click', clearRange);
-
-    // Pie chart – udział procentowy
-    new Chart(document.getElementById('stateChart'), {
-      type: 'pie',
-      data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]},
-      options:{responsive:true,plugins:{datalabels:{formatter:(v,ctx)=>{const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (v/sum*100).toFixed(1)+'%';},color:'#fff',font:{weight:'bold',size:14}},legend:{position:'bottom'}}}
+    // Pie chart
+    new Chart(document.getElementById('stateChart'),{
+      type:'pie',data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]},
+      options:{responsive:true,plugins:{datalabels:{formatter:(v,ctx)=>{const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (v/sum*100).toFixed(1)+'%';},color:'#fff'}},legend:{position:'bottom'}}
     });
 
-    // Bar chart – Top 10
-    new Chart(document.getElementById('top10Chart'), {
-      type: 'bar',
-      data:{labels:{{ top10_labels_full|tojson }},datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }}}]},
+    // Bar chart
+    new Chart(document.getElementById('top10Chart'),{
+      type:'bar',data:{labels:{{ top10_labels_full|tojson }},datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }}}]},
       options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
     });
   </script>
@@ -315,10 +288,10 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         alarm_state=alarm_state,
         warning_state=warning_state,
         normal_state=normal_state,
+        stats=stats,
         counts=counts,
         top10_values=top10_values,
         top10_labels_full=top10_labels_full,
-        stats=stats,
         unique_names=unique_names,
         unique_codes=unique_codes,
         boundary=boundary,
