@@ -113,13 +113,10 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
     .stats-table th{background:#3498db;color:#fff;}
     canvas{max-width:100%;margin:20px 0;}
-    .filters{position:absolute;top:60px;right:20px;z-index:1000;}
-    .dropdown{margin-bottom:10px;position:relative;}
-    .dropbtn{background:#fff;border:1px solid #ccc;padding:6px 10px;border-radius:4px;cursor:pointer;width:200px;text-align:left;}
-    .dropdown-content{display:none;position:absolute;right:0;background:#fff;min-width:200px;border:1px solid #ccc;box-shadow:0 2px 4px rgba(0,0,0,0.1);max-height:200px;overflow:auto;z-index:1001;}
-    .dropdown-content label{display:block;padding:4px 10px;cursor:pointer;}
-    .dropdown-content button{width:100%;border:none;background:#eee;padding:6px;cursor:pointer;}
-    .dropdown.open .dropdown-content{display:block;}
+    .filters-panel{position:absolute;top:60px;right:20px;z-index:1000;background:white;padding:15px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.2);max-height:80%;overflow:auto;}
+    .filters-panel h4{margin:10px 0 5px;}
+    .filters-panel label{display:block;cursor:pointer;}
+    .filters-panel input[type="number"]{width:60px;margin:0 5px;}
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
 </head>
@@ -128,7 +125,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <div class="summary">
     <div class="summary-box alarm-summary">Alarmowe (≥500): {{ alarm_state|length }}</div>
     <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
-    <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
+    <div class="summary-box normal-summary">Normalne (&lt;450): {{ normal_state|length }}</div>
   </div>
   <button id="refresh-button" onclick="location.reload()">Odśwież dane</button>
 
@@ -143,59 +140,67 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     {% if alarm_state %}
       <h2>⚠️ Stany alarmowe (≥500)</h2>
       <div class="table-container alarm">
-        <table><thead><tr>
-          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
-          <th>Stan wody</th><th>Data pomiaru</th><th>Przepływ</th><th>Data przepływu</th>
-        </tr></thead><tbody>
-        {% for r in alarm_state %}
-          <tr>
-            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
-            <td class="coords">
-              {% if r.lon and r.lat %}
-                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
-              {% else %}<span class="null-value">brak</span>{% endif %}
-            </td>
-            <td><strong>{{ r.stan }}</strong></td>
-            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
-          </tr>
-        {% endfor %}
-        </tbody></table>
+        <table>
+          <thead><tr>
+            <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+            <th>Stan wody</th><th>Data</th><th>Przepływ</th><th>Data przepływu</th>
+          </tr></thead>
+          <tbody>
+          {% for r in alarm_state %}
+            <tr>
+              <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+              <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+              <td class="coords">
+                {% if r.lon and r.lat %}
+                  {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+                {% else %}<span class="null-value">brak</span>{% endif %}
+              </td>
+              <td><strong>{{ r.stan }}</strong></td>
+              <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+              <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+              <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
       </div>
     {% endif %}
     {% if warning_state %}
       <h2>⚠️ Stany ostrzegawcze (450–499)</h2>
       <div class="table-container warning">
-        <table><thead><tr>
-          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
-          <th>Stan wody</th><th>Data pomiaru</th><th>Przepływ</th><th>Data przepływu</th>
-        </tr></thead><tbody>
-        {% for r in warning_state %}
-          <tr>
-            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
-            <td class="coords">
-              {% if r.lon and r.lat %}
-                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
-              {% else %}<span class="null-value">brak</span>{% endif %}
-            </td>
-            <td><strong>{{ r.stan }}</strong></td>
-            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
-            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
-          </tr>
-        {% endfor %}
-        </tbody></table>
+        <table>
+          <thead><tr>
+            <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+            <th>Stan wody</th><th>Data</th><th>Przepływ</th><th>Data przepływu</th>
+          </tr></thead>
+          <tbody>
+          {% for r in warning_state %}
+            <tr>
+              <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+              <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+              <td class="coords">
+                {% if r.lon and r.lat %}
+                  {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+                {% else %}<span class="null-value">brak</span>{% endif %}
+              </td>
+              <td><strong>{{ r.stan }}</strong></td>
+              <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+              <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+              <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
       </div>
     {% endif %}
     <h2>Wszystkie stacje</h2>
     <div class="table-container">
-      <table><thead><tr>
-        <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
-        <th>Stan wody</th><th>Data pomiaru</th><th>Przepływ</th><th>Data przepływu</th><th>Status</th>
-      </tr></thead><tbody>
+      <table>
+        <thead><tr>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data</th><th>Przepływ</th><th>Data przepływu</th><th>Status</th>
+        </tr></thead>
+        <tbody>
         {% for r in data %}
           {% set lvl = r.stan is not none and r.stan|float %}
           <tr>
@@ -229,49 +234,35 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
             </td>
           </tr>
         {% endfor %}
-      </tbody></table>
+        </tbody>
+      </table>
     </div>
   </div>
 
   <!-- Mapa -->
   <div id="map" class="tab-content" style="position:relative;">
     <h2>Mapa stacji</h2>
+    <div class="filters-panel">
+      <h4>Stan wody:</h4>
+      <label><input type="checkbox" class="stateFilter" value="alarm" checked> Alarmowe</label>
+      <label><input type="checkbox" class="stateFilter" value="warning" checked> Ostrzegawcze</label>
+      <label><input type="checkbox" class="stateFilter" value="normal" checked> Normalne</label>
+      <button onclick="filterMarkers()">Filtruj</button>
+      <button onclick="resetFilters()">Wyczyść wszystkie</button>
 
-    <div class="filters">
-      <div class="dropdown" id="stateDropdown">
-        <button class="dropbtn" onclick="toggleDropdown('stateDropdown')">Stan wody ▼</button>
-        <div class="dropdown-content">
-          <label><input type="checkbox" class="stateFilter" value="alarm" checked> Alarmowe</label>
-          <label><input type="checkbox" class="stateFilter" value="warning" checked> Ostrzegawcze</label>
-          <label><input type="checkbox" class="stateFilter" value="normal" checked> Normalne</label>
-          <button onclick="clearStates()">Wyczyść</button>
-        </div>
-      </div>
-      <div class="dropdown" id="nameDropdown">
-        <button class="dropbtn" onclick="toggleDropdown('nameDropdown')">Nazwa stacji ▼</button>
-        <div class="dropdown-content">
-          {% for n in unique_names %}
-            <label><input type="checkbox" class="nameFilter" value="{{ n }}" checked> {{ n }}</label>
-          {% endfor %}
-          <button onclick="clearNames()">Wyczyść</button>
-        </div>
-      </div>
-      <div class="dropdown" id="codeDropdown">
-        <button class="dropbtn" onclick="toggleDropdown('codeDropdown')">Kod stacji ▼</button>
-        <div class="dropdown-content">
-          {% for c in unique_codes %}
-            <label><input type="checkbox" class="codeFilter" value="{{ c }}" checked> {{ c }}</label>
-          {% endfor %}
-          <button onclick="clearCodes()">Wyczyść</button>
-        </div>
-      </div>
-      <div style="margin-top:10px;">
-        <label>Zakres stanu: <input type="number" id="minLevel" value="0" style="width:60px;"> – <input type="number" id="maxLevel" value="10000" style="width:60px;"></label>
-        <button onclick="filterMarkers()">Filtruj</button>
-        <button onclick="resetFilters()">Wyczyść wszystkie</button>
-      </div>
+      <h4>Nazwa stacji:</h4>
+      {% for n in unique_names %}
+        <label><input type="checkbox" class="nameFilter" value="{{ n }}" checked> {{ n }}</label>
+      {% endfor %}
+
+      <h4>Kod stacji:</h4>
+      {% for c in unique_codes %}
+        <label><input type="checkbox" class="codeFilter" value="{{ c }}" checked> {{ c }}</label>
+      {% endfor %}
+
+      <h4>Zakres stanu:</h4>
+      <label>od <input type="number" id="minLevel" value="0"> do <input type="number" id="maxLevel" value="10000"></label>
     </div>
-
     <div id="leaflet-map"></div>
   </div>
 
@@ -314,21 +305,9 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     });
 
-    // Dropdown toggle
-    function toggleDropdown(id){
-      document.getElementById(id).classList.toggle('open');
-    }
-    window.onclick = function(e){
-      if(!e.target.matches('.dropbtn')){
-        document.querySelectorAll('.dropdown').forEach(d=>d.classList.remove('open'));
-      }
-    };
-
-    // Leaflet + popup z kodem i nazwą
+    // Leaflet
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap contributors'
-    }).addTo(map);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'© OpenStreetMap contributors' }).addTo(map);
     L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
 
     var stations = {{ data|tojson }};
@@ -336,12 +315,9 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     stations.forEach(s=>{
       if(s.lon && s.lat){
         var cat = s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
-        var m = L.circleMarker([+s.lat,+s.lon],{
-          radius:5,
-          color: cat==='alarm'?'red':(cat==='warning'?'orange':'green')
-        }).bindPopup(
-          `<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`
-        ).addTo(map);
+        var m = L.circleMarker([+s.lat,+s.lon],{ radius:5, color: cat==='alarm'?'red':(cat==='warning'?'orange':'green') })
+          .bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`)
+          .addTo(map);
         m.category = cat;
         m.stationName = s.nazwa_stacji;
         m.stationCode = s.kod_stacji;
@@ -350,18 +326,18 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       }
     });
 
-    // Legenda mapy
+    // Legenda
     var legend = L.control({position:'bottomright'});
-    legend.onAdd = function(map) {
+    legend.onAdd = function(map){
       var div = L.DomUtil.create('div','legend');
-      div.innerHTML += '<i style="background:red"></i> Stany alarmowe<br>';
-      div.innerHTML += '<i style="background:orange"></i> Stany ostrzegawcze<br>';
-      div.innerHTML += '<i style="background:green"></i> Stany normalne';
+      div.innerHTML += '<i style="background:red"></i> Alarmowe<br>';
+      div.innerHTML += '<i style="background:orange"></i> Ostrzegawcze<br>';
+      div.innerHTML += '<i style="background:green"></i> Normalne';
       return div;
     };
     legend.addTo(map);
 
-    // Filtry
+    // Filtracja
     function filterMarkers(){
       var selStates = Array.from(document.querySelectorAll('.stateFilter:checked')).map(cb=>cb.value);
       var selNames  = Array.from(document.querySelectorAll('.nameFilter:checked')).map(cb=>cb.value);
@@ -376,9 +352,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         if(ok) map.addLayer(m); else map.removeLayer(m);
       });
     }
-    function clearStates(){ document.querySelectorAll('.stateFilter').forEach(cb=>cb.checked=false); filterMarkers(); }
-    function clearNames(){ document.querySelectorAll('.nameFilter').forEach(cb=>cb.checked=false); filterMarkers(); }
-    function clearCodes(){ document.querySelectorAll('.codeFilter').forEach(cb=>cb.checked=false); filterMarkers(); }
     function resetFilters(){
       document.querySelectorAll('.stateFilter, .nameFilter, .codeFilter').forEach(cb=>cb.checked=true);
       document.getElementById('minLevel').value=0;
@@ -386,39 +359,23 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       filterMarkers();
     }
 
-    // Pie chart – udział procentowy
+    // Pie chart
     new Chart(document.getElementById('stateChart'), {
-      type: 'pie',
-      data: {
-        labels:['Alarmowe','Ostrzegawcze','Normalne'],
-        datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]
-      },
-      options:{
-        responsive:true,
-        plugins:{
-          datalabels:{
-            formatter:(v,ctx)=>{ const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0); return (v/sum*100).toFixed(1)+'%'; },
-            color:'#fff', font:{weight:'bold', size:14}
-          },
-          legend:{position:'bottom'}
-        }
-      }
+      type:'pie',
+      data:{ labels:['Alarmowe','Ostrzegawcze','Normalne'], datasets:[{ data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}] }] },
+      options:{ responsive:true, plugins:{ datalabels:{ formatter:(v,ctx)=>{const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (v/sum*100).toFixed(1)+'%';}, color:'#fff', font:{weight:'bold',size:14} }, legend:{position:'bottom'} } }
     });
 
-    // Bar chart – Top 10
+    // Bar chart
     new Chart(document.getElementById('top10Chart'), {
-      type: 'bar',
-      data:{
-        labels:{{ top10_labels_full|tojson }},
-        datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }}}]
-      },
-      options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
+      type:'bar',
+      data:{ labels:{{ top10_labels_full|tojson }}, datasets:[{ label:'Poziom wody', data:{{ top10_values|tojson }} }] },
+      options:{ indexAxis:'y', responsive:true, scales:{ x:{ beginAtZero:true } } }
     });
   </script>
 </body>
 </html>
     """)
-
     rendered = tpl.render(
         data=data,
         alarm_state=alarm_state,
@@ -433,10 +390,8 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         boundary=boundary,
         timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
-
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(rendered)
-
     print(f"✅ Wygenerowano {output_file}")
 
 if __name__ == '__main__':
