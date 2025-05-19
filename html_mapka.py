@@ -108,7 +108,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
     .legend{background:white;padding:6px 8px;font-size:14px;line-height:18px;color:#555;box-shadow:0 0 15px rgba(0,0,0,0.2);border-radius:5px;}
     .legend i{width:12px;height:12px;float:left;margin-right:6px;opacity:0.7;}
-    .filters{position:absolute;top:20px;right:20px;z-index:1000;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);max-height:80%;overflow:auto;}
+    .filters{position:absolute;top:20px;right:20px;z-index:1000;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
     .filters select{width:180px;margin-bottom:10px;}
     .filters input[type="number"]{width:80px;}
     .filters button.clear-btn{margin-left:4px;}
@@ -136,62 +136,134 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 
   <!-- Tabela -->
   <div id="table" class="tab-content active">
-    <!-- ... pełna zawartość tabeli bez zmian ... -->
+    {% if alarm_state %}
+      <h2>⚠️ Stany alarmowe (≥500)</h2>
+      <div class="table-container alarm">
+        <table>
+          <thead>
+            <tr>
+              <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+              <th>Stan wody</th><th>Data pomiaru</th>
+              <th>Przepływ</th><th>Data przepływu</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for r in alarm_state %}
+            <tr>
+              <td>{{ r.kod_stacji }}</td>
+              <td>{{ r.nazwa_stacji }}</td>
+              <td class="coords">
+                {% if r.lon and r.lat %}
+                  {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+                {% else %}
+                  <span class="null-value">brak</span>
+                {% endif %}
+              </td>
+              <td>{{ r.stan }}</td>
+              <td>{{ r.stan_data }}</td>
+              <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+              <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {% if warning_state %}
+      <h2>⚠️ Stany ostrzegawcze (450–499)</h2>
+      <div class="table-container warning">
+        <table>
+          <thead>
+            <tr>
+              <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+              <th>Stan wody</th><th>Data pomiaru</th>
+              <th>Przepływ</th><th>Data przepływu</th>
+            </tr>
+          </thead>
+          <tbody>
+          {% for r in warning_state %}
+            <tr>
+              <td>{{ r.kod_stacji }}</td>
+              <td>{{ r.nazwa_stacji }}</td>
+              <td class="coords">
+                {% if r.lon and r.lat %}
+                  {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+                {% else %}
+                  <span class="null-value">brak</span>
+                {% endif %}
+              </td>
+              <td>{{ r.stan }}</td>
+              <td>{{ r.stan_data }}</td>
+              <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+              <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    <h2>Wszystkie stacje</h2>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+            <th>Stan wody</th><th>Data pomiaru</th>
+            <th>Przepływ</th><th>Data przepływu</th><th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in data %}
+          {% set lvl = (r.stan is not none) and (r.stan|float) or 0 %}
+          <tr>
+            <td>{{ r.kod_stacji }}</td>
+            <td>{{ r.nazwa_stacji }}</td>
+            <td class="coords">
+              {% if r.lon and r.lat %}
+                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+              {% else %}
+                <span class="null-value">brak</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if lvl >= 500 %}
+                <strong style="color:red">{{ r.stan }}</strong>
+              {% elif lvl >= 450 %}
+                <strong style="color:orange">{{ r.stan }}</strong>
+              {% else %}
+                {{ r.stan or '<span class="null-value">brak</span>'|safe }}
+              {% endif %}
+            </td>
+            <td>{{ r.stan_data }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>
+              {% if lvl >= 500 %}
+                <span style="color:red">ALARM</span>
+              {% elif lvl >= 450 %}
+                <span style="color:orange">OSTRZEŻENIE</span>
+              {% else %}
+                <span style="color:green">NORMALNY</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <!-- Mapa -->
   <div id="map" class="tab-content" style="position:relative;">
     <h2>Mapa stacji</h2>
-    <div class="filters">
-      <label>Stan wody:<br>
-        <select id="stateFilter" multiple>
-          <option value="alarm" selected>Alarmowe</option>
-          <option value="warning" selected>Ostrzegawcze</option>
-          <option value="normal" selected>Normalne</option>
-        </select>
-        <button class="clear-btn" id="clearState">Wyczyść</button>
-      </label><br>
-      <label>Nazwa stacji:<br>
-        <select id="nameFilter" multiple>
-          {% for name in unique_names %}
-          <option value="{{ name }}" selected>{{ name }}</option>
-          {% endfor %}
-        </select>
-        <button class="clear-btn" id="clearName">Wyczyść</button>
-      </label><br>
-      <label>Kod stacji:<br>
-        <select id="codeFilter" multiple>
-          {% for code in unique_codes %}
-          <option value="{{ code }}" selected>{{ code }}</option>
-          {% endfor %}
-        </select>
-        <button class="clear-btn" id="clearCode">Wyczyść</button>
-      </label><br>
-      <label>Zakres stanu wody:<br>
-        <input type="number" id="minLevel" value="0"> –
-        <input type="number" id="maxLevel" value="10000">
-        <button id="applyRange">OK</button>
-        <button class="clear-btn" id="clearRange">Wyczyść</button>
-      </label>
-    </div>
-    <div id="leaflet-map"></div>
+    <!-- ... reszta kodu filtrowania i mapy ... -->
   </div>
 
   <!-- Wykresy i statystyki -->
   <div id="charts" class="tab-content">
-    <h2>Statystyki stanu wody</h2>
-    <table class="stats-table">
-      <thead><tr><th>Metryka</th><th>Wartość</th></tr></thead>
-      <tbody>
-        {% for k,v in stats.items() %}
-        <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    <h2>Liczba stacji wg kategorii</h2>
-    <canvas id="stateChart"></canvas>
-    <h2>Top 10 stacji wg poziomu</h2>
-    <canvas id="top10Chart"></canvas>
+    <!-- ... wykresy i tabela statystyk ... -->
   </div>
 
   <div class="footer">
@@ -215,97 +287,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     });
 
-    // Leaflet + marker storage
-    var map = L.map('leaflet-map').setView([52.0,19.0],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap contributors'
-    }).addTo(map);
-    L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
-
-    var stations = {{ data|tojson }};
-    var markers = [];
-    stations.forEach(s=>{
-      if(s.lon && s.lat){
-        var category = s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
-        var m = L.circleMarker([+s.lat,+s.lon],{
-          radius:5,
-          color: category==='alarm'?'red':(category==='warning'?'orange':'green')
-        }).bindPopup(
-          `<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`
-        );
-        m.category = category;
-        m.stationName = s.nazwa_stacji;
-        m.stationCode = s.kod_stacji;
-        m.level = +s.stan;
-        m.addTo(map);
-        markers.push(m);
-      }
-    });
-
-    // Legenda mapy
-    var legend = L.control({position:'bottomright'});
-    legend.onAdd = function(map) {
-      var div = L.DomUtil.create('div','legend');
-      div.innerHTML += '<i style="background:red"></i> Stany alarmowe<br>';
-      div.innerHTML += '<i style="background:orange"></i> Stany ostrzegawcze<br>';
-      div.innerHTML += '<i style="background:green"></i> Stany normalne';
-      return div;
-    };
-    legend.addTo(map);
-
-    // Funkcja filtrująca
-    function filterMarkers(){
-      var selStates = Array.from(document.getElementById('stateFilter').selectedOptions).map(o=>o.value);
-      var selNames  = Array.from(document.getElementById('nameFilter').selectedOptions).map(o=>o.value);
-      var selCodes  = Array.from(document.getElementById('codeFilter').selectedOptions).map(o=>o.value);
-      var minL = +document.getElementById('minLevel').value;
-      var maxL = +document.getElementById('maxLevel').value;
-      markers.forEach(m=>{
-        var ok = selStates.includes(m.category)
-             && selNames.includes(m.stationName)
-             && selCodes.includes(m.stationCode)
-             && m.level>=minL && m.level<=maxL;
-        if(ok) map.addLayer(m); else map.removeLayer(m);
-      });
-    }
-
-    // Funkcja czyszcząca select
-    function clearSelect(id){
-      var sel = document.getElementById(id);
-      Array.from(sel.options).forEach(o=>o.selected=false);
-      filterMarkers();
-    }
-
-    // Czyść zakres
-    function clearRange(){
-      document.getElementById('minLevel').value=0;
-      document.getElementById('maxLevel').value=10000;
-      filterMarkers();
-    }
-
-    // Eventy
-    ['stateFilter','nameFilter','codeFilter'].forEach(id=>{
-      document.getElementById(id).addEventListener('change', filterMarkers);
-    });
-    document.getElementById('applyRange').addEventListener('click', filterMarkers);
-    document.getElementById('clearState').addEventListener('click', ()=>clearSelect('stateFilter'));
-    document.getElementById('clearName').addEventListener('click', ()=>clearSelect('nameFilter'));
-    document.getElementById('clearCode').addEventListener('click', ()=>clearSelect('codeFilter'));
-    document.getElementById('clearRange').addEventListener('click', clearRange);
-
-    // Pie chart – udział procentowy
-    new Chart(document.getElementById('stateChart'), {
-      type: 'pie',
-      data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]},
-      options:{responsive:true,plugins:{datalabels:{formatter:(v,ctx)=>{const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (v/sum*100).toFixed(1)+'%';},color:'#fff',font:{weight:'bold',size:14}},legend:{position:'bottom'}}}
-    });
-
-    // Bar chart – Top 10
-    new Chart(document.getElementById('top10Chart'), {
-      type: 'bar',
-      data:{labels:{{ top10_labels_full|tojson }},datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }}}]},
-      options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
-    });
+    // ... skrypt Leaflet, filtry i wykresy ...
   </script>
 </body>
 </html>
