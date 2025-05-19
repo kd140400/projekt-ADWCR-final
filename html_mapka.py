@@ -113,11 +113,13 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
     .stats-table th{background:#3498db;color:#fff;}
     canvas{max-width:100%;margin:20px 0;}
-    .filters{position:absolute;top:60px;right:20px;z-index:1000;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);max-height:80%;overflow:auto;}
-    .filters fieldset{margin-bottom:10px;border:1px solid #ddd;padding:6px;}
-    .filters legend{font-weight:bold;}
-    .filters label{display:block;font-size:0.9em;}
-    .filters button{margin-top:4px;font-size:0.9em;}
+    .filters{position:absolute;top:60px;right:20px;z-index:1000;}
+    .dropdown{margin-bottom:10px;position:relative;}
+    .dropbtn{background:#fff;border:1px solid #ccc;padding:6px 10px;border-radius:4px;cursor:pointer;width:200px;text-align:left;}
+    .dropdown-content{display:none;position:absolute;right:0;background:#fff;min-width:200px;border:1px solid #ccc;box-shadow:0 2px 4px rgba(0,0,0,0.1);max-height:200px;overflow:auto;z-index:1001;}
+    .dropdown-content label{display:block;padding:4px 10px;cursor:pointer;}
+    .dropdown-content button{width:100%;border:none;background:#eee;padding:6px;cursor:pointer;}
+    .dropdown.open .dropdown-content{display:block;}
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
 </head>
@@ -236,34 +238,38 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     <h2>Mapa stacji</h2>
 
     <div class="filters">
-      <fieldset>
-        <legend>Stan wody</legend>
-        <label><input type="checkbox" class="stateFilter" value="alarm" checked> Alarmowe</label>
-        <label><input type="checkbox" class="stateFilter" value="warning" checked> Ostrzegawcze</label>
-        <label><input type="checkbox" class="stateFilter" value="normal" checked> Normalne</label>
-        <button type="button" onclick="clearStates()">Wyczyść</button>
-      </fieldset>
-      <fieldset>
-        <legend>Nazwa stacji</legend>
-        {% for n in unique_names %}
-          <label><input type="checkbox" class="nameFilter" value="{{ n }}" checked> {{ n }}</label>
-        {% endfor %}
-        <button type="button" onclick="clearNames()">Wyczyść</button>
-      </fieldset>
-      <fieldset>
-        <legend>Kod stacji</legend>
-        {% for c in unique_codes %}
-          <label><input type="checkbox" class="codeFilter" value="{{ c }}" checked> {{ c }}</label>
-        {% endfor %}
-        <button type="button" onclick="clearCodes()">Wyczyść</button>
-      </fieldset>
-      <fieldset>
-        <legend>Zakres stanu</legend>
-        <label>Od <input type="number" id="minLevel" value="0" style="width:60px;"></label>
-        <label>Do <input type="number" id="maxLevel" value="10000" style="width:60px;"></label>
-        <button type="button" onclick="filterMarkers()">Filtruj</button>
-        <button type="button" onclick="resetFilters()">Wyczyść wszystkie</button>
-      </fieldset>
+      <div class="dropdown" id="stateDropdown">
+        <button class="dropbtn" onclick="toggleDropdown('stateDropdown')">Stan wody ▼</button>
+        <div class="dropdown-content">
+          <label><input type="checkbox" class="stateFilter" value="alarm" checked> Alarmowe</label>
+          <label><input type="checkbox" class="stateFilter" value="warning" checked> Ostrzegawcze</label>
+          <label><input type="checkbox" class="stateFilter" value="normal" checked> Normalne</label>
+          <button onclick="clearStates()">Wyczyść</button>
+        </div>
+      </div>
+      <div class="dropdown" id="nameDropdown">
+        <button class="dropbtn" onclick="toggleDropdown('nameDropdown')">Nazwa stacji ▼</button>
+        <div class="dropdown-content">
+          {% for n in unique_names %}
+            <label><input type="checkbox" class="nameFilter" value="{{ n }}" checked> {{ n }}</label>
+          {% endfor %}
+          <button onclick="clearNames()">Wyczyść</button>
+        </div>
+      </div>
+      <div class="dropdown" id="codeDropdown">
+        <button class="dropbtn" onclick="toggleDropdown('codeDropdown')">Kod stacji ▼</button>
+        <div class="dropdown-content">
+          {% for c in unique_codes %}
+            <label><input type="checkbox" class="codeFilter" value="{{ c }}" checked> {{ c }}</label>
+          {% endfor %}
+          <button onclick="clearCodes()">Wyczyść</button>
+        </div>
+      </div>
+      <div style="margin-top:10px;">
+        <label>Zakres stanu: <input type="number" id="minLevel" value="0" style="width:60px;"> – <input type="number" id="maxLevel" value="10000" style="width:60px;"></label>
+        <button onclick="filterMarkers()">Filtruj</button>
+        <button onclick="resetFilters()">Wyczyść wszystkie</button>
+      </div>
     </div>
 
     <div id="leaflet-map"></div>
@@ -307,6 +313,16 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         if(btn.dataset.tab==='map') setTimeout(()=>map.invalidateSize(),200);
       });
     });
+
+    // Dropdown toggle
+    function toggleDropdown(id){
+      document.getElementById(id).classList.toggle('open');
+    }
+    window.onclick = function(e){
+      if(!e.target.matches('.dropbtn')){
+        document.querySelectorAll('.dropdown').forEach(d=>d.classList.remove('open'));
+      }
+    };
 
     // Leaflet + popup z kodem i nazwą
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
@@ -381,10 +397,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         responsive:true,
         plugins:{
           datalabels:{
-            formatter:(v,ctx)=>{
-              const sum = ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
-              return (v/sum*100).toFixed(1)+'%';
-            },
+            formatter:(v,ctx)=>{ const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0); return (v/sum*100).toFixed(1)+'%'; },
             color:'#fff', font:{weight:'bold', size:14}
           },
           legend:{position:'bottom'}
