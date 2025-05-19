@@ -83,7 +83,8 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Dane hydrologiczne IMGW (hydro2)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
@@ -108,8 +109,9 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
     .legend{background:white;padding:6px 8px;font-size:14px;line-height:18px;color:#555;box-shadow:0 0 15px rgba(0,0,0,0.2);border-radius:5px;}
     .legend i{width:12px;height:12px;float:left;margin-right:6px;opacity:0.7;}
-    .filters{background:#fff;padding:10px 20px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);margin-bottom:10px;}
-    .filters h3{margin-top:0;}
+    .filters{position:absolute;top:20px;right:20px;z-index:1000;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);max-height:80%;overflow:auto;}
+    .filters select{width:180px;margin-bottom:10px;}
+    .filters input[type="number"]{width:80px;}
     .stats-table{width:50%;margin:0 auto 20px;border-collapse:collapse;}
     .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
     .stats-table th{background:#3498db;color:#fff;}
@@ -138,31 +140,35 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   </div>
 
   <!-- Mapa -->
-  <div id="map" class="tab-content">
+  <div id="map" class="tab-content" style="position:relative;">
     <h2>Mapa stacji</h2>
     <div class="filters">
-      <h3>Filtry</h3>
-      <div><strong>Stan wody:</strong><br>
-        <label><input type="checkbox" class="filter-state" value="alarm" checked> Alarmowe</label>
-        <label><input type="checkbox" class="filter-state" value="warning" checked> Ostrzegawcze</label>
-        <label><input type="checkbox" class="filter-state" value="normal" checked> Normalne</label>
-      </div>
-      <div><strong>Nazwa stacji:</strong><br>
-        {% for name in unique_names %}
-        <label><input type="checkbox" class="filter-name" value="{{ name }}" checked> {{ name }}</label><br>
-        {% endfor %}
-      </div>
-      <div><strong>Kod stacji:</strong><br>
-        {% for code in unique_codes %}
-        <label><input type="checkbox" class="filter-code" value="{{ code }}" checked> {{ code }}</label><br>
-        {% endfor %}
-      </div>
-      <div><strong>Zakres stanu wody:</strong><br>
-        <input type="number" id="minLevel" placeholder="min" value="0" style="width:80px;">
-        –
-        <input type="number" id="maxLevel" placeholder="max" value="10000" style="width:80px;">
-        <button id="applyRange">Filtruj</button>
-      </div>
+      <label>Stan wody:<br>
+        <select id="stateFilter" multiple>
+          <option value="alarm" selected>Alarmowe</option>
+          <option value="warning" selected>Ostrzegawcze</option>
+          <option value="normal" selected>Normalne</option>
+        </select>
+      </label><br>
+      <label>Nazwa stacji:<br>
+        <select id="nameFilter" multiple>
+          {% for name in unique_names %}
+          <option value="{{ name }}" selected>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </label><br>
+      <label>Kod stacji:<br>
+        <select id="codeFilter" multiple>
+          {% for code in unique_codes %}
+          <option value="{{ code }}" selected>{{ code }}</option>
+          {% endfor %}
+        </select>
+      </label><br>
+      <label>Zakres stanu wody:<br>
+        <input type="number" id="minLevel" value="0"> –
+        <input type="number" id="maxLevel" value="10000">
+        <button id="applyRange">OK</button>
+      </label>
     </div>
     <div id="leaflet-map"></div>
   </div>
@@ -243,11 +249,11 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     };
     legend.addTo(map);
 
-    // Funkcja filtrująca
+    // Filtruj markery
     function filterMarkers(){
-      var selStates = Array.from(document.querySelectorAll('.filter-state:checked')).map(i=>i.value);
-      var selNames  = Array.from(document.querySelectorAll('.filter-name:checked')).map(i=>i.value);
-      var selCodes  = Array.from(document.querySelectorAll('.filter-code:checked')).map(i=>i.value);
+      var selStates = Array.from(document.getElementById('stateFilter').selectedOptions).map(o=>o.value);
+      var selNames  = Array.from(document.getElementById('nameFilter').selectedOptions).map(o=>o.value);
+      var selCodes  = Array.from(document.getElementById('codeFilter').selectedOptions).map(o=>o.value);
       var minL = +document.getElementById('minLevel').value;
       var maxL = +document.getElementById('maxLevel').value;
       markers.forEach(m=>{
@@ -259,11 +265,11 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     }
 
-    // Eventy dla filtrów
-    document.querySelectorAll('.filter-state, .filter-name, .filter-code').forEach(cb=>
-      cb.addEventListener('change', filterMarkers)
-    );
-    document.getElementById('applyRange').addEventListener('click', filterMarkers);
+    // Eventy filtrów
+    document.getElementById('stateFilter').addEventListener('change', filterMarkers);
+    document.getElementById('nameFilter').addEventListener('change',   filterMarkers);
+    document.getElementById('codeFilter').addEventListener('change',   filterMarkers);
+    document.getElementById('applyRange').addEventListener('click',    filterMarkers);
 
     // Pie chart – udział procentowy
     new Chart(document.getElementById('stateChart'), {
