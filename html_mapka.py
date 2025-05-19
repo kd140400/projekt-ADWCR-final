@@ -22,9 +22,12 @@ def classify_water_levels(data):
     for row in data:
         try:
             lvl = float(row.get('stan', 0))
-            if lvl >= 500: alarm.append(row)
-            elif lvl >= 450: warning.append(row)
-            else: normal.append(row)
+            if lvl >= 500:
+                alarm.append(row)
+            elif lvl >= 450:
+                warning.append(row)
+            else:
+                normal.append(row)
         except:
             continue
     return alarm, warning, normal
@@ -34,7 +37,7 @@ def generate_html():
     data = []
     with open(CSV_FILE, encoding='utf-8-sig') as f:
         for r in csv.DictReader(f, delimiter=';'):
-            data.append({k: (v or None) for k,v in r.items()})
+            data.append({k: (v or None) for k, v in r.items()})
 
     # 2. Podział na kategorie
     alarm, warning, normal = classify_water_levels(data)
@@ -43,8 +46,9 @@ def generate_html():
     counts = {'alarm': len(alarm), 'warning': len(warning), 'normal': len(normal)}
     levels = [(r['kod_stacji'], float(r['stan'])) for r in data if r.get('stan')]
     top10 = sorted(levels, key=lambda x: x[1], reverse=True)[:10]
-    top10_labels = [f"{k} – { {r['kod_stacji']:r['nazwa_stacji'] for r in data}.get(k)}" for k,v in top10]
-    top10_values = [v for k,v in top10]
+    station_names = {r['kod_stacji']: r['nazwa_stacji'] for r in data}
+    top10_labels = [f"{k} – {station_names.get(k)}" for k, _ in top10]
+    top10_values = [v for _, v in top10]
 
     # 4. Statystyki
     nums = [float(r['stan']) for r in data if r.get('stan')]
@@ -63,7 +67,7 @@ def generate_html():
     # 6. Granice Polski
     boundary = json.load(open(GEOJSON_FILE, encoding='utf-8'))
 
-    # 7. Render HTML
+    # 7. Szablon HTML
     tpl = Template("""
 <!DOCTYPE html>
 <html lang="pl">
@@ -117,7 +121,7 @@ def generate_html():
     <h2>Wszystkie stacje</h2>
     <table><thead><tr><th>Kod</th><th>Stacja</th><th>Stan</th><th>Data</th><th>Status</th></tr></thead><tbody>
     {% for r in data %}
-      {% set lvl = (r.stan|float) if r.stan %} 
+      {% set lvl = (r.stan|float) if r.stan else 0 %}
       <tr>
         <td>{{r.kod_stacji}}</td><td>{{r.nazwa_stacji}}</td><td>{{r.stan}}</td><td>{{r.stan_data}}</td>
         <td>{% if lvl>=500 %}ALARM{% elif lvl>=450 %}OSTRZEŻENIE{% else %}NORMALNY{% endif %}</td>
@@ -176,7 +180,6 @@ def generate_html():
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script>
     Chart.register(ChartDataLabels);
-
     // Zakładki
     document.querySelectorAll('.tab-button').forEach(b=>{
       b.onclick=()=>{
@@ -188,56 +191,50 @@ def generate_html():
       };
     });
 
-    // Map
-    var map=L.map('leaflet-map').setView([52,19],6);
+    // Mapa
+    var map = L.map('leaflet-map').setView([52,19],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(map);
     L.geoJSON({{boundary|tojson}},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
     var markers=[];
-    {{# each station in data #}}
-    // dodamy poniżej w JS
-    {{/each}}
-
-    var dataStations={{data|tojson}};
-    dataStations.forEach(s=>{
+    {{ data|tojson }}.forEach(s=>{
       if(s.lon && s.lat){
-        var cat=s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
-        var m=L.circleMarker([+s.lat,+s.lon],{radius:5,color:cat==='alarm'?'red':cat==='warning'?'orange':'green'}).bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`);
+        var cat = s.stan>=500?'alarm':(s.stan>=450?'warning':'normal');
+        var m = L.circleMarker([+s.lat,+s.lon],{radius:5,color:cat==='alarm'?'red':cat==='warning'?'orange':'green'})
+                  .bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`);
         m.cat=cat; m.name=s.nazwa_stacji; m.code=s.kod_stacji; m.level=+s.stan;
         m.addTo(map); markers.push(m);
       }
     });
-    L.control({position:'bottomright'}).onAdd=()=>{let d=L.DomUtil.create('div','legend');d.innerHTML='<i style="background:red"></i>Alarmowe<br><i style="background:orange"></i>Ostrzegawcze<br><i style="background:green"></i>Normalne';return d;}.addTo(map);
+    L.control({position:'bottomright'}).onAdd=()=>{let d=L.DomUtil.create('div','legend');
+      d.innerHTML='<i style="background:red"></i>Alarmowe<br><i style="background:orange"></i>Ostrzegawcze<br><i style="background:green"></i>Normalne';return d;
+    }.addTo(map);
 
     function filterMarkers(){
-      let selS=Array.from(document.querySelectorAll('.fstate:checked')).map(i=>i.value);
-      let selN=Array.from(document.querySelectorAll('.fname:checked')).map(i=>i.value);
-      let selC=Array.from(document.querySelectorAll('.fcode:checked')).map(i=>i.value);
+      let S=Array.from(document.querySelectorAll('.fstate:checked')).map(i=>i.value);
+      let N=Array.from(document.querySelectorAll('.fname:checked')).map(i=>i.value);
+      let C=Array.from(document.querySelectorAll('.fcode:checked')).map(i=>i.value);
       let minL=+document.getElementById('minL').value, maxL=+document.getElementById('maxL').value;
       markers.forEach(m=>{
-        let ok=selS.includes(m.cat)&&selN.includes(m.name)&&selC.includes(m.code)&&m.level>=minL&&m.level<=maxL;
+        let ok = S.includes(m.cat)&&N.includes(m.name)&&C.includes(m.code)&&m.level>=minL&&m.level<=maxL;
         ok?map.addLayer(m):map.removeLayer(m);
       });
     }
-
-    // Select All handlers
-    document.getElementById('allStates').onclick=()=>{let c=event.target.checked;document.querySelectorAll('.fstate').forEach(x=>x.checked=c);filterMarkers()};
-    document.getElementById('allNames').onclick=()=>{let c=event.target.checked;document.querySelectorAll('.fname').forEach(x=>x.checked=c);filterMarkers()};
-    document.getElementById('allCodes').onclick=()=>{let c=event.target.checked;document.querySelectorAll('.fcode').forEach(x=>x.checked=c);filterMarkers()};
+    document.getElementById('allStates').onclick=()=>{let v=event.target.checked;document.querySelectorAll('.fstate').forEach(x=>x.checked=v);filterMarkers()};
+    document.getElementById('allNames').onclick=()=>{let v=event.target.checked;document.querySelectorAll('.fname').forEach(x=>x.checked=v);filterMarkers()};
+    document.getElementById('allCodes').onclick=()=>{let v=event.target.checked;document.querySelectorAll('.fcode').forEach(x=>x.checked=v);filterMarkers()};
     document.querySelectorAll('.fstate').forEach(x=>x.onchange=filterMarkers);
     document.querySelectorAll('.fname').forEach(x=>x.onchange=filterMarkers);
     document.querySelectorAll('.fcode').forEach(x=>x.onchange=filterMarkers);
     document.getElementById('applyRange').onclick=filterMarkers;
-    document.getElementById('clearRange').onclick=()=>{
-      document.getElementById('minL').value=0;document.getElementById('maxL').value=10000;filterMarkers();
-    };
+    document.getElementById('clearRange').onclick=()=>{document.getElementById('minL').value=0;document.getElementById('maxL').value=10000;filterMarkers()};
 
-    // Charts
+    // Wykresy
     new Chart(document.getElementById('stateChart'),{
       type:'pie',data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],datasets:[{data:[{{counts.alarm}},{{counts.warning}},{{counts.normal}}]}]},
       options:{responsive:true,plugins:{datalabels:{formatter:(v,ctx)=>{let sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (v/sum*100).toFixed(1)+'%';},color:'#fff'}},legend:{position:'bottom'}}
     });
     new Chart(document.getElementById('top10Chart'),{
-      type:'bar',data:{labels:{{top10_labels_full|tojson}},datasets:[{label:'Poziom wody',data:{{top10_values|tojson}}}]},
+      type:'bar',data:{labels:{{top10_labels|tojson}},datasets:[{label:'Poziom wody',data:{{top10_values|tojson}}}]},
       options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
     });
   </script>
@@ -247,7 +244,7 @@ def generate_html():
     html = tpl.render(
         data=data, alarm=alarm, warning=warning, normal=normal,
         stats=stats, counts=counts,
-        top10_labels_full=top10_labels_full, top10_values=top10_values,
+        top10_labels=top10_labels, top10_values=top10_values,
         unique_names=unique_names, unique_codes=unique_codes,
         boundary=boundary, timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
@@ -255,5 +252,5 @@ def generate_html():
         f.write(html)
     print("Gotowe: hydro_table.html")
 
-if __name__=='__main__':
+if __name__ == '__main__':
     generate_html()
