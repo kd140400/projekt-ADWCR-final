@@ -47,7 +47,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     # 1) Wczytaj dane CSV
     data = []
     with open(csv_file, mode='r', encoding='utf-8-sig') as f:
-        reader = csv.DictReader(f, delimiter=';')
+        reader = csv.DictReader(f)
         for r in reader:
             data.append({k: (v if v != '' else None) for k, v in r.items()})
 
