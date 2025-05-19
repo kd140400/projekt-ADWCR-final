@@ -20,15 +20,6 @@ def fetch_new_data():
 def save_new_data(data, csv_file=CSV_FILE):
     pd.DataFrame(data).to_csv(csv_file, index=False, encoding='utf-8-sig')
 
-def refresh_and_save_data():
-    new = fetch_new_data()
-    if new:
-        with open(CSV_FILE, 'w', encoding='utf-8-sig') as f:
-            f.truncate(0)
-        save_new_data(new)
-        return new
-    return None
-
 def classify_water_levels(data):
     alarm, warning, normal = [], [], []
     for row in data:
@@ -52,10 +43,10 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         for r in reader:
             data.append({k: (v if v != '' else None) for k, v in r.items()})
 
-    # 2) Klasyfikacja stanów
+    # 2) Klasyfikacja
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
-    # 3) Przygotuj dane do wykresów
+    # 3) Dane do wykresów
     counts = {
         'alarm': len(alarm_state),
         'warning': len(warning_state),
@@ -69,7 +60,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     station_names = {r['kod_stacji']: r['nazwa_stacji'] for r in data}
     top10_labels_full = [f"{k} – {station_names.get(k, k)}" for k in top10_codes]
 
-    # 4) Statystyki stanu wody
+    # 4) Statystyki
     numeric = [float(r['stan']) for r in data if r.get('stan') is not None]
     stats = {
         'Liczba pomiarów': len(numeric),
@@ -79,7 +70,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         'Mediana': f"{statistics.median(numeric):.2f}"
     }
 
-    # 5) Wczytaj GeoJSON granic Polski
+    # 5) Granice Polski
     with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
         boundary = json.load(gf)
 
@@ -112,11 +103,11 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .coords{font-family:monospace;} .null-value{color:#999;font-style:italic;}
     .alarm td{background:#ffdddd;} .warning td{background:#fff3cd;}
     #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    .legend {background:white;padding:6px 8px;font-size:14px;line-height:18px;color:#555;box-shadow:0 0 15px rgba(0,0,0,0.2);border-radius:5px;}
+    .legend{background:white;padding:6px 8px;font-size:14px;line-height:18px;color:#555;box-shadow:0 0 15px rgba(0,0,0,0.2);border-radius:5px;}
     .legend i{width:12px;height:12px;float:left;margin-right:6px;opacity:0.7;}
-    .stats-table {width:50%;margin:0 auto 20px;border-collapse:collapse;}
-    .stats-table th, .stats-table td {border:1px solid #ddd;padding:8px;text-align:center;}
-    .stats-table th {background:#3498db;color:#fff;}
+    .stats-table{width:50%;margin:0 auto 20px;border-collapse:collapse;}
+    .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
+    .stats-table th{background:#3498db;color:#fff;}
     canvas{max-width:100%;margin:20px 0;}
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
@@ -126,19 +117,112 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <div class="summary">
     <div class="summary-box alarm-summary">Alarmowe (≥500): {{ alarm_state|length }}</div>
     <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
-    <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
+    <div class="summary-box normal-summary">Normalne (&lt;450): {{ normal_state|length }}</div>
   </div>
   <button id="refresh-button" onclick="location.reload()">Odśwież dane</button>
 
   <div class="tabs">
     <button class="tab-button active" data-tab="table">Tabela</button>
     <button class="tab-button" data-tab="map">Mapa</button>
-    <button class="tab-button" data-tab="charts">Wykresy</button>
+    <button class="tab-button" data-tab="charts">Wykresy i statystyki</button>
   </div>
 
   <!-- Tabela -->
   <div id="table" class="tab-content active">
-    <!-- ... pełna zawartość tabeli ... -->
+    {% if alarm_state %}
+      <h2>⚠️ Stany alarmowe (≥500)</h2>
+      <div class="table-container alarm">
+        <table><thead><tr>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data pomiaru</th>
+          <th>Przepływ</th><th>Data przepływu</th>
+        </tr></thead><tbody>
+        {% for r in alarm_state %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">
+              {% if r.lon and r.lat %}
+                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+              {% else %}<span class="null-value">brak</span>{% endif %}
+            </td>
+            <td><strong>{{ r.stan }}</strong></td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+          </tr>
+        {% endfor %}
+        </tbody></table>
+      </div>
+    {% endif %}
+    {% if warning_state %}
+      <h2>⚠️ Stany ostrzegawcze (450–499)</h2>
+      <div class="table-container warning">
+        <table><thead><tr>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data pomiaru</th>
+          <th>Przepływ</th><th>Data przepływu</th>
+        </tr></thead><tbody>
+        {% for r in warning_state %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">
+              {% if r.lon and r.lat %}
+                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+              {% else %}<span class="null-value">brak</span>{% endif %}
+            </td>
+            <td><strong>{{ r.stan }}</strong></td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+          </tr>
+        {% endfor %}
+        </tbody></table>
+      </div>
+    {% endif %}
+    <h2>Wszystkie stacje</h2>
+    <div class="table-container">
+      <table><thead><tr>
+        <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+        <th>Stan wody</th><th>Data pomiaru</th>
+        <th>Przepływ</th><th>Data przepływu</th><th>Status</th>
+      </tr></thead><tbody>
+        {% for r in data %}
+          {% set lvl = r.stan is not none and r.stan|float %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">
+              {% if r.lon and r.lat %}
+                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+              {% else %}<span class="null-value">brak</span>{% endif %}
+            </td>
+            <td>
+              {% if lvl >= 500 %}
+                <strong style="color:red">{{ r.stan }}</strong>
+              {% elif lvl >= 450 %}
+                <strong style="color:orange">{{ r.stan }}</strong>
+              {% else %}
+                {{ r.stan or '<span class="null-value">brak</span>'|safe }}
+              {% endif %}
+            </td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>
+              {% if lvl >= 500 %}
+                <span style="color:red">ALARM</span>
+              {% elif lvl >= 450 %}
+                <span style="color:orange">OSTRZEŻENIE</span>
+              {% else %}
+                <span style="color:green">NORMALNY</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody></table>
+    </div>
   </div>
 
   <!-- Mapa -->
@@ -147,7 +231,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     <div id="leaflet-map"></div>
   </div>
 
-  <!-- Wykresy -->
+  <!-- Wykresy i statystyki -->
   <div id="charts" class="tab-content">
     <h2>Statystyki stanu wody</h2>
     <table class="stats-table">
@@ -192,7 +276,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       attribution:'© OpenStreetMap contributors'
     }).addTo(map);
     L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
-
     var stations = {{ data|tojson }};
     stations.forEach(s=>{
       if(s.lon && s.lat){
@@ -241,8 +324,8 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         counts=counts,
         top10_values=top10_values,
         top10_labels_full=top10_labels_full,
-        boundary=boundary,
         stats=stats,
+        boundary=boundary,
         timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
     with open(output_file, 'w', encoding='utf-8') as f:
