@@ -83,8 +83,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 <!DOCTYPE html>
 <html lang="pl">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Dane hydrologiczne IMGW (hydro2)</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
   <style>
@@ -112,6 +111,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .filters{position:absolute;top:20px;right:20px;z-index:1000;background:white;padding:10px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);max-height:80%;overflow:auto;}
     .filters select{width:180px;margin-bottom:10px;}
     .filters input[type="number"]{width:80px;}
+    .filters button.clear-btn{margin-left:4px;}
     .stats-table{width:50%;margin:0 auto 20px;border-collapse:collapse;}
     .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
     .stats-table th{background:#3498db;color:#fff;}
@@ -149,6 +149,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
           <option value="warning" selected>Ostrzegawcze</option>
           <option value="normal" selected>Normalne</option>
         </select>
+        <button class="clear-btn" id="clearState">Wyczyść</button>
       </label><br>
       <label>Nazwa stacji:<br>
         <select id="nameFilter" multiple>
@@ -156,6 +157,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
           <option value="{{ name }}" selected>{{ name }}</option>
           {% endfor %}
         </select>
+        <button class="clear-btn" id="clearName">Wyczyść</button>
       </label><br>
       <label>Kod stacji:<br>
         <select id="codeFilter" multiple>
@@ -163,11 +165,13 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
           <option value="{{ code }}" selected>{{ code }}</option>
           {% endfor %}
         </select>
+        <button class="clear-btn" id="clearCode">Wyczyść</button>
       </label><br>
       <label>Zakres stanu wody:<br>
         <input type="number" id="minLevel" value="0"> –
         <input type="number" id="maxLevel" value="10000">
         <button id="applyRange">OK</button>
+        <button class="clear-btn" id="clearRange">Wyczyść</button>
       </label>
     </div>
     <div id="leaflet-map"></div>
@@ -249,7 +253,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     };
     legend.addTo(map);
 
-    // Filtruj markery
+    // Funkcja filtrująca
     function filterMarkers(){
       var selStates = Array.from(document.getElementById('stateFilter').selectedOptions).map(o=>o.value);
       var selNames  = Array.from(document.getElementById('nameFilter').selectedOptions).map(o=>o.value);
@@ -265,11 +269,29 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     }
 
-    // Eventy filtrów
-    document.getElementById('stateFilter').addEventListener('change', filterMarkers);
-    document.getElementById('nameFilter').addEventListener('change',   filterMarkers);
-    document.getElementById('codeFilter').addEventListener('change',   filterMarkers);
-    document.getElementById('applyRange').addEventListener('click',    filterMarkers);
+    // Funkcja czyszcząca select
+    function clearSelect(id){
+      var sel = document.getElementById(id);
+      Array.from(sel.options).forEach(o=>o.selected=false);
+      filterMarkers();
+    }
+
+    // Czyść zakres
+    function clearRange(){
+      document.getElementById('minLevel').value=0;
+      document.getElementById('maxLevel').value=10000;
+      filterMarkers();
+    }
+
+    // Eventy
+    ['stateFilter','nameFilter','codeFilter'].forEach(id=>{
+      document.getElementById(id).addEventListener('change', filterMarkers);
+    });
+    document.getElementById('applyRange').addEventListener('click', filterMarkers);
+    document.getElementById('clearState').addEventListener('click', ()=>clearSelect('stateFilter'));
+    document.getElementById('clearName').addEventListener('click', ()=>clearSelect('nameFilter'));
+    document.getElementById('clearCode').addEventListener('click', ()=>clearSelect('codeFilter'));
+    document.getElementById('clearRange').addEventListener('click', clearRange);
 
     // Pie chart – udział procentowy
     new Chart(document.getElementById('stateChart'), {
