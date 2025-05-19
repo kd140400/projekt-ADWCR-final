@@ -65,7 +65,12 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     top10 = sorted(levels, key=lambda x: x[1], reverse=True)[:10]
     top10_codes = [k for k, _ in top10]
     top10_values = [v for _, v in top10]
-    station_names = {r['kod_stacji']: r['nazwa_stacji'] for r in data}
+    # Poprawione tworzenie słownika tylko z pełnymi wpisami:
+    station_names = {
+        r.get('kod_stacji'): r.get('nazwa_stacji')
+        for r in data
+        if r.get('kod_stacji') and r.get('nazwa_stacji')
+    }
     top10_labels_full = [f"{k} – {station_names.get(k, k)}" for k in top10_codes]
 
     # 4) Wczytaj GeoJSON granic Polski
@@ -117,7 +122,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <div class="summary">
     <div class="summary-box alarm-summary">Alarmowe (≥500): {{ alarm_state|length }}</div>
     <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
-    <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
+    <div class="summary-box normal-summary">Normalne (&lt;450): {{ normal_state|length }}</div>
   </div>
   <button id="refresh-button" onclick="location.reload()">Odśwież dane</button>
 
@@ -248,7 +253,6 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script>
-    // Rejestracja DataLabels
     Chart.register(ChartDataLabels);
 
     // Zakładki
@@ -262,14 +266,12 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     });
 
-    // Leaflet i popup z kodem i nazwą
+    // Leaflet + popup z kodem i nazwą
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap contributors'
     }).addTo(map);
-    L.geoJSON({{ boundary|tojson }},{
-      style:{color:'#555',weight:1,fill:false}
-    }).addTo(map);
+    L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
 
     var stations = {{ data|tojson }};
     stations.forEach(s=>{
@@ -300,7 +302,9 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       type: 'pie',
       data: {
         labels: ['Alarmowe','Ostrzegawcze','Normalne'],
-        datasets: [{ data: [{{ counts.alarm }}, {{ counts.warning }}, {{ counts.normal }}] }]
+        datasets: [{
+          data: [{{ counts.alarm }}, {{ counts.warning }}, {{ counts.normal }}]
+        }]
       },
       options: {
         responsive: true,
@@ -323,9 +327,16 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       type: 'bar',
       data: {
         labels: {{ top10_labels_full|tojson }},
-        datasets: [{ label:'Poziom wody', data: {{ top10_values|tojson }} }]
+        datasets: [{
+          label: 'Poziom wody',
+          data: {{ top10_values|tojson }}
+        }]
       },
-      options: { indexAxis:'y', responsive:true, scales:{ x:{ beginAtZero:true } } }
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        scales: { x: { beginAtZero: true } }
+      }
     });
   </script>
 </body>
@@ -347,4 +358,5 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     print(f"✅ Wygenerowano {output_file}")
 
 if __name__ == '__main__':
+    refresh_and_save_data()
     generate_html_from_csv()
