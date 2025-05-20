@@ -183,8 +183,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   </script>
 </body>
 </html>
-    """
-    )
+    """)
     rendered = tpl.render(
         data=data,
         alarm_state=alarm_state,
