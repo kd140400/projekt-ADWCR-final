@@ -131,18 +131,24 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     }
     .chart-container {
       flex: 1 1 45%;
+      /* wysokość = 40% wysokości okna przeglądarki */
+      height: 40vh;
       background: #fff;
       padding: 10px;
       border-radius: 8px;
       box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
     }
     .chart-container h2 {
       text-align: center;
       margin-bottom: 10px;
     }
     .chart-container canvas {
+      /* wypełnij całą wysokość kontenera */
       width: 100% !important;
-      height: auto !important;
+      height: 100% !important;
+      flex: 1;
     }
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
@@ -344,14 +350,14 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     new Chart(document.getElementById('stateChart'), {
       type: 'pie',
       data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]},
-      options:{responsive:true,plugins:{datalabels:{formatter:(value,ctx)=>{const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (value/sum*100).toFixed(1)+'%';},color:'#fff',font:{weight:'bold',size:14}},legend:{position:'bottom'}}}
+      options:{responsive:true,maintainAspectRatio: false,plugins:{datalabels:{formatter:(value,ctx)=>{const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (value/sum*100).toFixed(1)+'%';},color:'#fff',font:{weight:'bold',size:14}},legend:{position:'bottom'}}}
     });
 
     // Bar chart – Top 10
     new Chart(document.getElementById('top10Chart'), {
       type: 'bar',
       data:{labels:{{ top10_labels_full|tojson }},datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }}}]},
-      options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
+      options:{indexAxis:'y',responsive:true,maintainAspectRatio: false,scales:{x:{beginAtZero:true}}}
     });
   </script>
 </body>
