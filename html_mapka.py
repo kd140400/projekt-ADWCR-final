@@ -349,7 +349,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     // Pie chart – udział procentowy
     new Chart(document.getElementById('stateChart'), {
       type: 'pie',
-      data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]},
+      data:{labels:['Alarmowe','Ostrzegawcze','Normalne'],datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}],backgroundColor: ['#e74c3c','#f1c40f','#2ecc71']}]},
       options:{responsive:true,maintainAspectRatio: false,plugins:{datalabels:{formatter:(value,ctx)=>{const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);return (value/sum*100).toFixed(1)+'%';},color:'#fff',font:{weight:'bold',size:14}},legend:{position:'bottom'}}}
     });
 
