@@ -18,7 +18,7 @@ def fetch_new_data():
     return r.json() if r.status_code == 200 else None
 
 def save_new_data(data, csv_file=CSV_FILE):
-    pd.DataFrame(data).to_csv(csv_file, index=False, encoding='utf-8-sig')
+    pd.DataFrame(data).to_csv(csv_file, index=False, encoding='utf-8-sig', sep=',')
 
 def classify_water_levels(data):
     alarm, warning, normal = [], [], []
