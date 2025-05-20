@@ -18,7 +18,8 @@ def fetch_new_data():
     return r.json() if r.status_code == 200 else None
 
 def save_new_data(data, csv_file=CSV_FILE):
-    pd.DataFrame(data).to_csv(csv_file, index=False, encoding='utf-8-sig')
+    # Zapisujemy z separatorem ';' by pasował do późniejszego odczytu
+    pd.DataFrame(data).to_csv(csv_file, sep=';', index=False, encoding='utf-8-sig')
 
 def classify_water_levels(data):
     alarm, warning, normal = [], [], []
@@ -105,7 +106,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .tab-button.active{background:#fff;border-bottom:2px solid #fff;}
     .tab-content{display:none;} .tab-content.active{display:block;}
     .table-container{overflow-x:auto;background:#fff;padding:20px;margin:20px 0;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
-    table{width:100%;border-collapse:collapse;font-size:0.9em;}th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;}th{background:#3498db;color:#fff;position:sticky;top:0;}tr:nth-child(even){background:#f2f2f2;}tr:hover{background:#e6f7ff;}
+    table{width:100%;border-collapse:collapse;font-size:0.9em;}th,td{padding:10px;border-bottom:1px solid #ddd;text-align:left;}th{background:#3498db;color:#fff;position:sticky;top:0;}tr:nth-child(even){background:#f2f7fb;}tr:hover{background:#e6f7ff;}
     .coords{font-family:monospace;} .null-value{color:#999;font-style:italic;}
     .alarm td{background:#ffdddd;} .warning td{background:#fff3cd;}
     #leaflet-map{width:100%;height:600px;border-radius:8px;box-shadow:0 2px 4px rgba(0,0,0,0.1);}
@@ -173,7 +174,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     var stations = {{ data|tojson }};
     stations.forEach(s=>{
       if(s.lon && s.lat){
-        L.circleMarker([+s.lat,+s.lon],{radius:5,color:s.stan>=500?'red':(s.stan>=450?'orange':'green')}).addTo(map).bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`);
+        L.circleMarker([+s.lat,+s.lon],{radius:5;color:s.stan>=500?'red':(s.stan>=450?'orange':'green')}).addTo(map).bindPopup(`<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>Stan: ${s.stan}`);
       }
     });
     var legend = L.control({position:'bottomright'});
