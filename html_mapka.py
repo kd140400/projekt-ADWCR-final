@@ -59,6 +59,36 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     # 2) Klasyfikacja
     alarm_state, warning_state, normal_state = classify_water_levels(data)
 
+    # 2a) Funkcja pomocnicza do liczenia statystyk
+    def compute_stats(nums):
+        if not nums:
+            return {
+                'Liczba pomiarów': 0,
+                'Min': '-',
+                'Max': '-',
+                'Średnia': '-',
+                'Mediana': '-'
+            }
+        return {
+            'Liczba pomiarów': len(nums),
+            'Min': f"{min(nums):.2f}",
+            'Max': f"{max(nums):.2f}",
+            'Średnia': f"{statistics.mean(nums):.2f}",
+            'Mediana': f"{statistics.median(nums):.2f}"
+        }
+
+    # 2b) Przygotuj listy wartości dla wszystkich i każdej kategorii
+    numeric_all     = [float(r['stan']) for r in data if r.get('stan') is not None]
+    numeric_alarm   = [float(r['stan']) for r in alarm_state   if r.get('stan') is not None]
+    numeric_warning = [float(r['stan']) for r in warning_state if r.get('stan') is not None]
+    numeric_normal  = [float(r['stan']) for r in normal_state  if r.get('stan') is not None]
+
+    # 2c) Oblicz słowniki statystyk
+    stats_all     = compute_stats(numeric_all)
+    stats_alarm   = compute_stats(numeric_alarm)
+    stats_warning = compute_stats(numeric_warning)
+    stats_normal  = compute_stats(numeric_normal)
+
     # 3) Dane do wykresów
     counts = {
         'alarm': len(alarm_state),
@@ -276,10 +306,24 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <div id="charts" class="tab-content">
     <h2>Statystyki stanu wody</h2>
     <table class="stats-table">
-      <thead><tr><th>Metryka</th><th>Wartość</th></tr></thead>
+      <thead>
+       <tr>
+          <th>Metryka</th>
+          <th>Wszystkie</th>
+          <th>Alarmowe</th>
+          <th>Ostrzegawcze</th>
+          <th>Normalne</th>
+        </tr>
+      </thead>
       <tbody>
-        {% for k,v in stats.items() %}
-        <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+        {% for k, v in stats_all.items() %}
+        <tr>
+          <td>{{ k }}</td>
+          <td>{{ v }}</td>
+          <td>{{ stats_alarm[k] }}</td>
+          <td>{{ stats_warning[k] }}</td>
+          <td>{{ stats_normal[k] }}</td>
+        </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -371,7 +415,10 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         counts=counts,
         top10_values=top10_values,
         top10_labels_full=top10_labels_full,
-        stats=stats,
+        stats_all=stats_all,
+        stats_alarm=stats_alarm,
+        stats_warning=stats_warning,
+        stats_normal=stats_normal,
         boundary=boundary,
         timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
