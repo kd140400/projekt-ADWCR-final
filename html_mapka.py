@@ -18,7 +18,7 @@ def fetch_new_data():
     return r.json() if r.status_code == 200 else None
 
 def save_new_data(data, csv_file=CSV_FILE):
-    pd.DataFrame(data).to_csv(csv_file, index=False, encoding='utf-8-sig', sep=',')
+    pd.DataFrame(data).to_csv(csv_file, index=False, encoding='utf-8-sig')
 
 def classify_water_levels(data):
     alarm, warning, normal = [], [], []
@@ -39,7 +39,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     # 1) Wczytaj dane CSV
     data = []
     with open(csv_file, mode='r', encoding='utf-8-sig') as f:
-        reader = csv.DictReader(f)
+        reader = csv.DictReader(f, delimiter=';')
         for r in reader:
             data.append({k: (v if v != '' else None) for k, v in r.items()})
 
