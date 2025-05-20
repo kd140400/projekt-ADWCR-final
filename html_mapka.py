@@ -4,12 +4,13 @@ from datetime import datetime
 import requests
 import pandas as pd
 import json
+import statistics
 
 # URL API hydro2
 API_URL = "https://danepubliczne.imgw.pl/api/data/hydro2"
 # Plik CSV
 CSV_FILE = 'hydro_data.csv'
-# Plik GeoJSON granic Polski (w tej samej ścieżce co skrypt)
+# Plik GeoJSON granic Polski
 GEOJSON_FILE = 'poland.geojson'
 
 def fetch_new_data():
@@ -68,11 +69,21 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     station_names = {r['kod_stacji']: r['nazwa_stacji'] for r in data}
     top10_labels_full = [f"{k} – {station_names.get(k, k)}" for k in top10_codes]
 
-    # 4) Wczytaj GeoJSON granic Polski
+    # 4) Statystyki stanu wody
+    numeric = [float(r['stan']) for r in data if r.get('stan') is not None]
+    stats = {
+        'Liczba pomiarów': len(numeric),
+        'Min': f"{min(numeric):.2f}",
+        'Max': f"{max(numeric):.2f}",
+        'Średnia': f"{statistics.mean(numeric):.2f}",
+        'Mediana': f"{statistics.median(numeric):.2f}"
+    }
+
+    # 5) Wczytaj GeoJSON granic Polski
     with open(GEOJSON_FILE, 'r', encoding='utf-8') as gf:
         boundary = json.load(gf)
 
-    # 5) Szablon HTML
+    # 6) Szablon HTML
     tpl = Template("""
 <!DOCTYPE html>
 <html lang="pl">
@@ -114,28 +125,39 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <div class="summary">
     <div class="summary-box alarm-summary">Alarmowe (≥500): {{ alarm_state|length }}</div>
     <div class="summary-box warning-summary">Ostrz. (450–499): {{ warning_state|length }}</div>
-    <div class="summary-box normal-summary">Normalne (<450): {{ normal_state|length }}</div>
+    <div class="summary-box normal-summary">Normalne (&lt;450): {{ normal_state|length }}</div>
   </div>
   <button id="refresh-button" onclick="location.reload()">Odśwież dane</button>
 
   <div class="tabs">
     <button class="tab-button active" data-tab="table">Tabela</button>
     <button class="tab-button" data-tab="map">Mapa</button>
-    <button class="tab-button" data-tab="charts">Wykresy</button>
+    <button class="tab-button" data-tab="charts">Wykresy i statystyki</button>
   </div>
 
   <!-- Tabela -->
   <div id="table" class="tab-content active">
-    <!-- Twoja tabela – bez zmian -->
+    <!-- pełna zawartość tabeli -->
   </div>
 
   <!-- Mapa -->
   <div id="map" class="tab-content">
+    <h2>Mapa stacji</h2>
     <div id="leaflet-map"></div>
   </div>
 
   <!-- Wykresy -->
   <div id="charts" class="tab-content">
+    <h2>Statystyki stanu wody</h2>
+    <table class="stats-table">
+      <thead><tr><th>Metryka</th><th>Wartość</th></tr></thead>
+      <tbody>
+        {% for k,v in stats.items() %}
+        <tr><td>{{ k }}</td><td>{{ v }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
     <h2>Liczba stacji wg kategorii</h2>
     <canvas id="stateChart"></canvas>
     <h2>Top 10 stacji wg poziomu</h2>
@@ -150,6 +172,8 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
   <script>
+    Chart.register(ChartDataLabels);
+
     // Zakładki
     document.querySelectorAll('.tab-button').forEach(btn=>{
       btn.addEventListener('click',()=>{
@@ -161,14 +185,12 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       });
     });
 
-    // Leaflet z popupem zawierającym kod i nazwę
+    // Leaflet + popup z kodem i nazwą
     var map = L.map('leaflet-map').setView([52.0,19.0],6);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
       attribution:'© OpenStreetMap contributors'
     }).addTo(map);
-    L.geoJSON({{ boundary|tojson }},{
-      style:{color:'#555',weight:1,fill:false}
-    }).addTo(map);
+    L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
     var stations = {{ data|tojson }};
     stations.forEach(s=>{
       if(s.lon && s.lat){
@@ -176,53 +198,42 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
           radius:5,
           color: s.stan>=500?'red':(s.stan>=450?'orange':'green')
         }).addTo(map).bindPopup(
-          <b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>+
-          Stan: ${s.stan}
+          `<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>` +
+          `Stan: ${s.stan}`
         );
       }
     });
 
-    // Pie chart – Liczba stacji wg kategorii z etykietami
+    // Pie chart – udział procentowy
     new Chart(document.getElementById('stateChart'), {
       type: 'pie',
-      data: {
-        labels: ['Alarmowe','Ostrzegawcze','Normalne'],
-        datasets: [{
-          data: [{{ counts.alarm }}, {{ counts.warning }}, {{ counts.normal }}]
-        }]
+      data:{
+        labels:['Alarmowe','Ostrzegawcze','Normalne'],
+        datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]
       },
-      options: {
-        responsive: true,
-        plugins: {
-          datalabels: {
-            formatter: (value, ctx) => {
-              let label = ctx.chart.data.labels[ctx.dataIndex];
-              return ${label}: ${value};
+      options:{
+        responsive:true,
+        plugins:{
+          datalabels:{
+            formatter:(value,ctx)=>{
+              const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+              return `${(value/sum*100).toFixed(1)}%`;
             },
-            color: '#fff',
-            font: { weight: 'bold', size: 14 }
+            color:'#fff',font:{weight:'bold',size:14}
           },
-          legend: { position: 'bottom' }
+          legend:{position:'bottom'}
         }
-      },
-      plugins: [ChartDataLabels]
+      }
     });
 
-    // Bar chart – Top 10 stacji wg poziomu
+    // Bar chart – Top 10
     new Chart(document.getElementById('top10Chart'), {
-      type: 'bar',
-      data: {
-        labels: {{ top10_labels_full|tojson }},
-        datasets: [{
-          label: 'Poziom wody',
-          data: {{ top10_values|tojson }}
-        }]
+      type:'bar',
+      data:{
+        labels:{{ top10_labels_full|tojson }},
+        datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }}}]
       },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        scales: { x: { beginAtZero: true } }
-      }
+      options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
     });
   </script>
 </body>
@@ -236,6 +247,7 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
         counts=counts,
         top10_values=top10_values,
         top10_labels_full=top10_labels_full,
+        stats=stats,
         boundary=boundary,
         timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     )
