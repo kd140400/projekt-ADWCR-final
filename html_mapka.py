@@ -137,7 +137,100 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
 
   <!-- Tabela -->
   <div id="table" class="tab-content active">
-    <!-- pełna zawartość tabeli -->
+    {% if alarm_state %}
+      <h2>⚠️ Stany alarmowe (≥500)</h2>
+      <div class="table-container alarm">
+        <table><thead><tr>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data pomiaru</th>
+          <th>Przepływ</th><th>Data przepływu</th>
+        </tr></thead><tbody>
+        {% for r in alarm_state %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">
+              {% if r.lon and r.lat %}
+                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+              {% else %}<span class="null-value">brak</span>{% endif %}
+            </td>
+            <td><strong>{{ r.stan }}</strong></td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+          </tr>
+        {% endfor %}
+        </tbody></table>
+      </div>
+    {% endif %}
+    {% if warning_state %}
+      <h2>⚠️ Stany ostrzegawcze (450–499)</h2>
+      <div class="table-container warning">
+        <table><thead><tr>
+          <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+          <th>Stan wody</th><th>Data pomiaru</th>
+          <th>Przepływ</th><th>Data przepływu</th>
+        </tr></thead><tbody>
+        {% for r in warning_state %}
+          <tr>
+            <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+            <td class="coords">
+              {% if r.lon and r.lat %}
+                {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+              {% else %}<span class="null-value">brak</span>{% endif %}
+            </td>
+            <td><strong>{{ r.stan }}</strong></td>
+            <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+            <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+          </tr>
+        {% endfor %}
+        </tbody></table>
+      </div>
+    {% endif %}
+    <h2>Wszystkie stacje</h2>
+    <div class="table-container">
+      <table><thead><tr>
+        <th>Kod stacji</th><th>Nazwa</th><th>Współrzędne</th>
+        <th>Stan wody</th><th>Data pomiaru</th>
+        <th>Przepływ</th><th>Data przepływu</th><th>Status</th>
+      </tr></thead><tbody>
+      {% for r in data %}
+        {% set lvl = r.stan is not none and r.stan|float %}
+        <tr>
+          <td>{{ r.kod_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+          <td>{{ r.nazwa_stacji or '<span class="null-value">brak</span>'|safe }}</td>
+          <td class="coords">
+            {% if r.lon and r.lat %}
+              {{ "%.6f"|format(r.lon|float) }}, {{ "%.6f"|format(r.lat|float) }}
+            {% else %}<span class="null-value">brak</span>{% endif %}
+          </td>
+          <td>
+            {% if lvl >= 500 %}
+              <strong style="color:red">{{ r.stan }}</strong>
+            {% elif lvl >= 450 %}
+              <strong style="color:orange">{{ r.stan }}</strong>
+            {% else %}
+              {{ r.stan or '<span class="null-value">brak</span>'|safe }}
+            {% endif %}
+          </td>
+          <td>{{ r.stan_data or '<span class="null-value">brak</span>'|safe }}</td>
+          <td>{{ r.przeplyw or '<span class="null-value">brak</span>'|safe }}</td>
+          <td>{{ r.przeplyw_data or '<span class="null-value">brak</span>'|safe }}</td>
+          <td>
+            {% if lvl >= 500 %}
+              <span style="color:red">ALARM</span>
+            {% elif lvl >= 450 %}
+              <span style="color:orange">OSTRZEŻENIE</span>
+            {% else %}
+              <span style="color:green">NORMALNY</span>
+            {% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody></table>
+    </div>
   </div>
 
   <!-- Mapa -->
@@ -168,92 +261,4 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     Ostatnia aktualizacja: {{ timestamp }} | Rekordów: {{ data|length }}
   </div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
-  <script>
-    Chart.register(ChartDataLabels);
-
-    // Zakładki
-    document.querySelectorAll('.tab-button').forEach(btn=>{
-      btn.addEventListener('click',()=>{
-        document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
-        document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
-        btn.classList.add('active');
-        document.getElementById(btn.dataset.tab).classList.add('active');
-        if(btn.dataset.tab==='map') setTimeout(()=>map.invalidateSize(),200);
-      });
-    });
-
-    // Leaflet + popup z kodem i nazwą
-    var map = L.map('leaflet-map').setView([52.0,19.0],6);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-      attribution:'© OpenStreetMap contributors'
-    }).addTo(map);
-    L.geoJSON({{ boundary|tojson }},{style:{color:'#555',weight:1,fill:false}}).addTo(map);
-    var stations = {{ data|tojson }};
-    stations.forEach(s=>{
-      if(s.lon && s.lat){
-        L.circleMarker([+s.lat,+s.lon],{
-          radius:5,
-          color: s.stan>=500?'red':(s.stan>=450?'orange':'green')
-        }).addTo(map).bindPopup(
-          `<b>${s.kod_stacji} – ${s.nazwa_stacji}</b><br>` +
-          `Stan: ${s.stan}`
-        );
-      }
-    });
-
-    // Pie chart – udział procentowy
-    new Chart(document.getElementById('stateChart'), {
-      type: 'pie',
-      data:{
-        labels:['Alarmowe','Ostrzegawcze','Normalne'],
-        datasets:[{data:[{{ counts.alarm }},{{ counts.warning }},{{ counts.normal }}]}]
-      },
-      options:{
-        responsive:true,
-        plugins:{
-          datalabels:{
-            formatter:(value,ctx)=>{
-              const sum=ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
-              return `${(value/sum*100).toFixed(1)}%`;
-            },
-            color:'#fff',font:{weight:'bold',size:14}
-          },
-          legend:{position:'bottom'}
-        }
-      }
-    });
-
-    // Bar chart – Top 10
-    new Chart(document.getElementById('top10Chart'), {
-      type:'bar',
-      data:{
-        labels:{{ top10_labels_full|tojson }},
-        datasets:[{label:'Poziom wody',data:{{ top10_values|tojson }}}]
-      },
-      options:{indexAxis:'y',responsive:true,scales:{x:{beginAtZero:true}}}
-    });
-  </script>
-</body>
-</html>
-    """)
-    rendered = tpl.render(
-        data=data,
-        alarm_state=alarm_state,
-        warning_state=warning_state,
-        normal_state=normal_state,
-        counts=counts,
-        top10_values=top10_values,
-        top10_labels_full=top10_labels_full,
-        stats=stats,
-        boundary=boundary,
-        timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    )
-    with open(output_file, 'w', encoding='utf-8') as f:
-        f.write(rendered)
-    print(f"✅ Wygenerowano {output_file}")
-
-if __name__ == '__main__':
-    generate_html_from_csv()
+  <script src="https://unpkg.com/leaflet@1.9.
