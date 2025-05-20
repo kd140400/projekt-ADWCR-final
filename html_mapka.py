@@ -122,6 +122,28 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
     .stats-table th,.stats-table td{border:1px solid #ddd;padding:8px;text-align:center;}
     .stats-table th{background:#3498db;color:#fff;}
     canvas{max-width:100%;margin:20px 0;}
+    .chart-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: space-between;
+      margin: 20px 0;
+    }
+    .chart-container {
+      flex: 1 1 45%;
+      background: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .chart-container h2 {
+      text-align: center;
+      margin-bottom: 10px;
+    }
+    .chart-container canvas {
+      width: 100% !important;
+      height: auto !important;
+    }
     .footer{text-align:center;color:#7f8c8d;margin-top:20px;}
   </style>
 </head>
@@ -256,10 +278,16 @@ def generate_html_from_csv(csv_file=CSV_FILE, output_file='hydro_table.html'):
       </tbody>
     </table>
 
-    <h2>Liczba stacji wg kategorii</h2>
-    <canvas id="stateChart"></canvas>
-    <h2>Top 10 stacji wg poziomu</h2>
-    <canvas id="top10Chart"></canvas>
+        <div class="chart-row">
+      <div class="chart-container">
+        <h2>Liczba stacji wg kategorii</h2>
+        <canvas id="stateChart"></canvas>
+      </div>
+      <div class="chart-container">
+        <h2>Top 10 stacji wg poziomu</h2>
+        <canvas id="top10Chart"></canvas>
+      </div>
+    </div>
   </div>
 
   <div class="footer">
